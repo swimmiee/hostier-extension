@@ -6,7 +6,8 @@
   "permissions": ["cookies", "storage"],
   "host_permissions": [
     "https://web.33m2.co.kr/*",
-    "https://host.enko.kr/*"
+    "https://host.enko.kr/*",
+    "https://*.liveanywhere.me/*"
   ],
   "action": {
     "default_popup": "popup.html"

@@ -19,6 +19,15 @@ const PLATFORM_COOKIES = {
     indicatorId: "indicator-enkorstay",
     btnId: "btn-enkorstay",
   },
+  LIVEANYWHERE: {
+    url: "https://console.liveanywhere.me",
+    name: "rtoken",
+    loginUrl: "https://account.liveanywhere.me",
+    ttlDays: 30,
+    label: "LiveAnywhere",
+    indicatorId: "indicator-liveanywhere",
+    btnId: "btn-liveanywhere",
+  },
 };
 
 async function loadStatus() {
@@ -84,6 +93,10 @@ document.getElementById("btn-33m2").addEventListener("click", () => {
 
 document.getElementById("btn-enkorstay").addEventListener("click", () => {
   connectPlatform("ENKORSTAY");
+});
+
+document.getElementById("btn-liveanywhere").addEventListener("click", () => {
+  connectPlatform("LIVEANYWHERE");
 });
 
 document.getElementById("openWebsite").addEventListener("click", (e) => {

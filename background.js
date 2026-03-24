@@ -16,6 +16,12 @@ const PLATFORM_COOKIES = {
     loginUrl: "https://host.enko.kr/login",
     ttlDays: 365,
   },
+  LIVEANYWHERE: {
+    url: "https://console.liveanywhere.me",
+    name: "rtoken",
+    loginUrl: "https://account.liveanywhere.me",
+    ttlDays: 30,
+  },
 };
 
 /**
@@ -68,10 +74,9 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
   const cookie = changeInfo.cookie;
 
   for (const [platform, config] of Object.entries(PLATFORM_COOKIES)) {
-    if (
-      cookie.name === config.name &&
-      cookie.domain.includes(new URL(config.url).hostname.replace("www.", ""))
-    ) {
+    const hostname = new URL(config.url).hostname;
+    const cookieDomain = cookie.domain.startsWith(".") ? cookie.domain.slice(1) : cookie.domain;
+    if (cookie.name === config.name && hostname.endsWith(cookieDomain)) {
       console.log(`[Strva] Detected ${platform} cookie change`);
       captureAndSendToken(platform);
       break;
