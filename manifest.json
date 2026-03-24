@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Strva",
+  "name": "Hostroom",
   "version": "1.0.0",
   "description": "숙소 플랫폼 예약 동기화",
   "permissions": ["cookies", "storage"],

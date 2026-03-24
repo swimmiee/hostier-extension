@@ -1,7 +1,7 @@
-// Strva Chrome Extension — Background Service Worker
+// Hostroom Chrome Extension — Background Service Worker
 // 플랫폼 쿠키 변경을 감지하고 토큰을 서버로 전송한다.
 
-const STRVA_URL = "http://localhost:3000";
+const HOSTROOM_URL = "http://localhost:3000";
 
 const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {
@@ -43,7 +43,7 @@ async function captureAndSendToken(platform) {
       ? new Date(cookie.expirationDate * 1000).toISOString()
       : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
 
-    const res = await fetch(`${STRVA_URL}/api/platform-connections`, {
+    const res = await fetch(`${HOSTROOM_URL}/api/platform-connections`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -63,7 +63,7 @@ async function captureAndSendToken(platform) {
       });
     }
   } catch (e) {
-    console.error(`[Strva] Failed to send ${platform} token:`, e);
+    console.error(`[Hostroom] Failed to send ${platform} token:`, e);
   }
 }
 
@@ -77,7 +77,7 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
     const hostname = new URL(config.url).hostname;
     const cookieDomain = cookie.domain.startsWith(".") ? cookie.domain.slice(1) : cookie.domain;
     if (cookie.name === config.name && hostname.endsWith(cookieDomain)) {
-      console.log(`[Strva] Detected ${platform} cookie change`);
+      console.log(`[Hostroom] Detected ${platform} cookie change`);
       captureAndSendToken(platform);
       break;
     }

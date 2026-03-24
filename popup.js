@@ -1,4 +1,4 @@
-const STRVA_URL = "http://localhost:3000";
+const HOSTROOM_URL = "http://localhost:3000";
 
 const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {
@@ -32,18 +32,18 @@ const PLATFORM_COOKIES = {
 
 async function loadStatus() {
   try {
-    const res = await fetch(`${STRVA_URL}/api/platform-connections`, {
+    const res = await fetch(`${HOSTROOM_URL}/api/platform-connections`, {
       credentials: "include",
     });
     if (!res.ok) {
       if (res.status === 401) {
-        document.getElementById("userEmail").textContent = "Strva에 로그인해주세요";
+        document.getElementById("userEmail").textContent = "Hostroom에 로그인해주세요";
       }
       return;
     }
     const data = await res.json();
 
-    const sessionRes = await fetch(`${STRVA_URL}/api/auth/session`, {
+    const sessionRes = await fetch(`${HOSTROOM_URL}/api/auth/session`, {
       credentials: "include",
     });
     if (sessionRes.ok) {
@@ -59,7 +59,7 @@ async function loadStatus() {
       setConnected(config, conn.status === "ACTIVE");
     }
   } catch (e) {
-    console.error("[Strva] Failed to load status:", e);
+    console.error("[Hostroom] Failed to load status:", e);
   }
 }
 
@@ -101,7 +101,7 @@ document.getElementById("btn-liveanywhere").addEventListener("click", () => {
 
 document.getElementById("openWebsite").addEventListener("click", (e) => {
   e.preventDefault();
-  chrome.tabs.create({ url: STRVA_URL });
+  chrome.tabs.create({ url: HOSTROOM_URL });
 });
 
 chrome.storage.onChanged.addListener((changes) => {
