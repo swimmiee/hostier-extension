@@ -1,0 +1,80 @@
+// Strva Chrome Extension — Background Service Worker
+// 플랫폼 쿠키 변경을 감지하고 토큰을 서버로 전송한다.
+
+const STRVA_URL = "http://localhost:3000";
+
+const PLATFORM_COOKIES = {
+  THIRTY_THREE_M2: {
+    url: "https://web.33m2.co.kr",
+    name: "__Secure-session-token",
+    loginUrl: "https://web.33m2.co.kr/login",
+    ttlDays: 30,
+  },
+  ENKORSTAY: {
+    url: "https://host.enko.kr",
+    name: "host.access.token",
+    loginUrl: "https://host.enko.kr/login",
+    ttlDays: 365,
+  },
+};
+
+/**
+ * 특정 플랫폼의 쿠키를 읽고 서버로 전송한다.
+ */
+async function captureAndSendToken(platform) {
+  const config = PLATFORM_COOKIES[platform];
+  if (!config) return;
+
+  try {
+    const cookie = await chrome.cookies.get({
+      url: config.url,
+      name: config.name,
+    });
+
+    if (!cookie || !cookie.value) return;
+
+    const tokenExpiresAt = cookie.expirationDate
+      ? new Date(cookie.expirationDate * 1000).toISOString()
+      : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
+
+    const res = await fetch(`${STRVA_URL}/api/platform-connections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        platform,
+        token: cookie.value,
+        tokenExpiresAt,
+      }),
+    });
+
+    if (res.ok) {
+      chrome.storage.local.set({
+        [`connection_${platform}`]: {
+          status: "ACTIVE",
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    }
+  } catch (e) {
+    console.error(`[Strva] Failed to send ${platform} token:`, e);
+  }
+}
+
+// 쿠키 변경 감지
+chrome.cookies.onChanged.addListener((changeInfo) => {
+  if (changeInfo.removed) return;
+
+  const cookie = changeInfo.cookie;
+
+  for (const [platform, config] of Object.entries(PLATFORM_COOKIES)) {
+    if (
+      cookie.name === config.name &&
+      cookie.domain.includes(new URL(config.url).hostname.replace("www.", ""))
+    ) {
+      console.log(`[Strva] Detected ${platform} cookie change`);
+      captureAndSendToken(platform);
+      break;
+    }
+  }
+});
