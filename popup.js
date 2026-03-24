@@ -1,0 +1,103 @@
+const STRVA_URL = "http://localhost:3000";
+
+const PLATFORM_COOKIES = {
+  THIRTY_THREE_M2: {
+    url: "https://web.33m2.co.kr",
+    name: "__Secure-session-token",
+    loginUrl: "https://web.33m2.co.kr/login",
+    ttlDays: 30,
+    label: "33m2",
+    indicatorId: "indicator-33m2",
+    btnId: "btn-33m2",
+  },
+  ENKORSTAY: {
+    url: "https://host.enko.kr",
+    name: "host.access.token",
+    loginUrl: "https://host.enko.kr/login",
+    ttlDays: 365,
+    label: "EnkorStay",
+    indicatorId: "indicator-enkorstay",
+    btnId: "btn-enkorstay",
+  },
+};
+
+async function loadStatus() {
+  try {
+    const res = await fetch(`${STRVA_URL}/api/platform-connections`, {
+      credentials: "include",
+    });
+    if (!res.ok) {
+      if (res.status === 401) {
+        document.getElementById("userEmail").textContent = "Strva에 로그인해주세요";
+      }
+      return;
+    }
+    const data = await res.json();
+
+    const sessionRes = await fetch(`${STRVA_URL}/api/auth/session`, {
+      credentials: "include",
+    });
+    if (sessionRes.ok) {
+      const session = await sessionRes.json();
+      if (session?.user?.email) {
+        document.getElementById("userEmail").textContent = session.user.email;
+      }
+    }
+
+    for (const conn of data.connections) {
+      const config = PLATFORM_COOKIES[conn.platform];
+      if (!config) continue;
+      setConnected(config, conn.status === "ACTIVE");
+    }
+  } catch (e) {
+    console.error("[Strva] Failed to load status:", e);
+  }
+}
+
+function setConnected(config, connected) {
+  const indicator = document.getElementById(config.indicatorId);
+  const btn = document.getElementById(config.btnId);
+
+  if (connected) {
+    indicator.textContent = "●";
+    indicator.classList.add("connected");
+    btn.textContent = "연결됨";
+    btn.classList.add("connected");
+    btn.disabled = true;
+  } else {
+    indicator.textContent = "○";
+    indicator.classList.remove("connected");
+    btn.textContent = "연결하기";
+    btn.classList.remove("connected");
+    btn.disabled = false;
+  }
+}
+
+async function connectPlatform(platform) {
+  const config = PLATFORM_COOKIES[platform];
+  chrome.tabs.create({ url: config.loginUrl });
+}
+
+document.getElementById("btn-33m2").addEventListener("click", () => {
+  connectPlatform("THIRTY_THREE_M2");
+});
+
+document.getElementById("btn-enkorstay").addEventListener("click", () => {
+  connectPlatform("ENKORSTAY");
+});
+
+document.getElementById("openWebsite").addEventListener("click", (e) => {
+  e.preventDefault();
+  chrome.tabs.create({ url: STRVA_URL });
+});
+
+chrome.storage.onChanged.addListener((changes) => {
+  for (const [key] of Object.entries(changes)) {
+    if (key.startsWith("connection_")) {
+      loadStatus();
+      break;
+    }
+  }
+});
+
+loadStatus();
