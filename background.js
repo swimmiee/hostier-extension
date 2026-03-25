@@ -1,5 +1,6 @@
 // Hostroom Chrome Extension — Background Service Worker
 // 플랫폼 쿠키 변경을 감지하고 토큰을 서버로 전송한다.
+// 또한 주기적으로 모든 쿠키를 재캡처하여 서버의 토큰을 최신 상태로 유지한다.
 
 const HOSTROOM_URL = "https://hostroom.vercel.app";
 
@@ -26,6 +27,9 @@ const PLATFORM_COOKIES = {
     ttlDays: 30,
   },
 };
+
+// 주기적 동기화 간격 (분)
+const SYNC_INTERVAL_MINUTES = 120; // 2시간
 
 /**
  * Hostroom 세션 쿠키를 읽어서 Cookie 헤더로 포함하여 fetch.
@@ -73,6 +77,7 @@ async function captureAndSendToken(platform) {
     });
 
     if (res.ok) {
+      console.log(`[Hostroom] ${platform} token synced`);
       chrome.storage.local.set({
         [`connection_${platform}`]: {
           status: "ACTIVE",
@@ -85,7 +90,20 @@ async function captureAndSendToken(platform) {
   }
 }
 
-// 쿠키 변경 감지
+/**
+ * 모든 플랫폼의 쿠키를 재캡처하여 서버에 전송.
+ * 33m2 같은 플랫폼의 내부 accessToken이 짧은 TTL(~3시간)이므로,
+ * 브라우저의 최신 쿠키를 주기적으로 서버에 동기화해야 한다.
+ */
+async function syncAllTokens() {
+  console.log("[Hostroom] Periodic token sync started");
+  for (const platform of Object.keys(PLATFORM_COOKIES)) {
+    await captureAndSendToken(platform);
+  }
+  console.log("[Hostroom] Periodic token sync complete");
+}
+
+// 쿠키 변경 감지 — 즉시 동기화
 chrome.cookies.onChanged.addListener((changeInfo) => {
   if (changeInfo.removed) return;
 
@@ -100,4 +118,22 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
       break;
     }
   }
+});
+
+// 주기적 알람 설정 — 2시간마다 모든 토큰 재동기화
+chrome.alarms.create("syncTokens", {
+  delayInMinutes: 1, // 확장 시작 1분 후 첫 실행
+  periodInMinutes: SYNC_INTERVAL_MINUTES,
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "syncTokens") {
+    syncAllTokens();
+  }
+});
+
+// 확장 설치/업데이트 시 즉시 동기화
+chrome.runtime.onInstalled.addListener(() => {
+  console.log("[Hostroom] Extension installed/updated — syncing tokens");
+  syncAllTokens();
 });
