@@ -5,21 +5,21 @@ const HOSTROOM_URL = "https://hostroom.vercel.app";
 
 const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {
-    url: "https://web.33m2.co.kr",
+    url: "https://web.33m2.co.kr/",
     name: "__Secure-session-token",
     loginUrl: "https://web.33m2.co.kr/sign-in",
     homeUrl: "https://web.33m2.co.kr/host/main",
     ttlDays: 30,
   },
   ENKORSTAY: {
-    url: "https://host.enko.kr",
+    url: "https://host.enko.kr/",
     name: "host.access.token",
     loginUrl: "https://host.enko.kr/signin",
     homeUrl: "https://host.enko.kr",
     ttlDays: 365,
   },
   LIVEANYWHERE: {
-    url: "https://console.liveanywhere.me",
+    url: "https://console.liveanywhere.me/",
     name: "rtoken",
     loginUrl: "https://account.liveanywhere.me/?returnUrl=https://console.liveanywhere.me",
     homeUrl: "https://console.liveanywhere.me/host",
