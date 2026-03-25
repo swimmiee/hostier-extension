@@ -3,7 +3,7 @@
   "name": "Hostroom",
   "version": "1.0.0",
   "description": "숙소 플랫폼 예약 동기화",
-  "permissions": ["cookies", "storage"],
+  "permissions": ["cookies", "storage", "alarms"],
   "host_permissions": [
     "https://web.33m2.co.kr/*",
     "https://host.enko.kr/*",
