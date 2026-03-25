@@ -7,7 +7,8 @@
   "host_permissions": [
     "https://web.33m2.co.kr/*",
     "https://host.enko.kr/*",
-    "https://*.liveanywhere.me/*"
+    "https://*.liveanywhere.me/*",
+    "https://hostroom.vercel.app/*"
   ],
   "action": {
     "default_popup": "popup.html"

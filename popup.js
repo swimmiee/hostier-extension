@@ -33,11 +33,26 @@ const PLATFORM_COOKIES = {
   },
 };
 
+/**
+ * Hostroom 세션 쿠키를 읽어서 Cookie 헤더로 포함하여 fetch.
+ * Chrome 확장에서 cross-origin credentials: "include"가 안 되므로 직접 처리.
+ */
+async function fetchWithSession(url, options = {}) {
+  const cookies = await chrome.cookies.getAll({ url: HOSTROOM_URL });
+  const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      Cookie: cookieHeader,
+    },
+  });
+}
+
 async function loadStatus() {
   try {
-    const res = await fetch(`${HOSTROOM_URL}/api/platform-connections`, {
-      credentials: "include",
-    });
+    const res = await fetchWithSession(`${HOSTROOM_URL}/api/platform-connections`);
     if (!res.ok) {
       if (res.status === 401) {
         document.getElementById("userEmail").textContent = "Hostroom에 로그인해주세요";
@@ -46,9 +61,7 @@ async function loadStatus() {
     }
     const data = await res.json();
 
-    const sessionRes = await fetch(`${HOSTROOM_URL}/api/auth/session`, {
-      credentials: "include",
-    });
+    const sessionRes = await fetchWithSession(`${HOSTROOM_URL}/api/auth/session`);
     if (sessionRes.ok) {
       const session = await sessionRes.json();
       if (session?.user?.email) {
@@ -88,7 +101,7 @@ function setConnected(config, connected) {
 async function connectPlatform(platform) {
   const config = PLATFORM_COOKIES[platform];
 
-  // 먼저 쿠키가 이미 있는지 확인 — 있으면 바로 캡처, 없으면 로그인 페이지로
+  // 먼저 쿠키가 이미 있는지 확인
   try {
     const cookie = await chrome.cookies.get({
       url: config.url,
@@ -96,21 +109,22 @@ async function connectPlatform(platform) {
     });
 
     if (cookie && cookie.value) {
-      // 쿠키가 이미 있음 — 바로 서버로 전송
       const tokenExpiresAt = cookie.expirationDate
         ? new Date(cookie.expirationDate * 1000).toISOString()
         : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
 
-      const res = await fetch(`${HOSTROOM_URL}/api/platform-connections`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          platform,
-          token: cookie.value,
-          tokenExpiresAt,
-        }),
-      });
+      const res = await fetchWithSession(
+        `${HOSTROOM_URL}/api/platform-connections`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platform,
+            token: cookie.value,
+            tokenExpiresAt,
+          }),
+        },
+      );
 
       if (res.ok) {
         setConnected(config, true);
@@ -127,7 +141,6 @@ async function connectPlatform(platform) {
     console.log("[Hostroom] Cookie check failed, opening login page:", e);
   }
 
-  // 쿠키 없음 — 로그인 페이지로
   chrome.tabs.create({ url: config.loginUrl });
 }
 

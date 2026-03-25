@@ -28,6 +28,22 @@ const PLATFORM_COOKIES = {
 };
 
 /**
+ * Hostroom 세션 쿠키를 읽어서 Cookie 헤더로 포함하여 fetch.
+ */
+async function fetchWithSession(url, options = {}) {
+  const cookies = await chrome.cookies.getAll({ url: HOSTROOM_URL });
+  const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      Cookie: cookieHeader,
+    },
+  });
+}
+
+/**
  * 특정 플랫폼의 쿠키를 읽고 서버로 전송한다.
  */
 async function captureAndSendToken(platform) {
@@ -46,10 +62,9 @@ async function captureAndSendToken(platform) {
       ? new Date(cookie.expirationDate * 1000).toISOString()
       : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
 
-    const res = await fetch(`${HOSTROOM_URL}/api/platform-connections`, {
+    const res = await fetchWithSession(`${HOSTROOM_URL}/api/platform-connections`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({
         platform,
         token: cookie.value,
