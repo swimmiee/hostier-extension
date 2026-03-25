@@ -29,7 +29,8 @@ const PLATFORM_COOKIES = {
 };
 
 // 주기적 동기화 간격 (분)
-const SYNC_INTERVAL_MINUTES = 120; // 2시간
+// 33m2의 JWT가 ~1시간 TTL이므로 30분마다 동기화
+const SYNC_INTERVAL_MINUTES = 30;
 
 /**
  * Hostroom 세션 쿠키를 읽어서 Cookie 헤더로 포함하여 fetch.
@@ -45,6 +46,54 @@ async function fetchWithSession(url, options = {}) {
       Cookie: cookieHeader,
     },
   });
+}
+
+/**
+ * 33m2 세션 쿠키 갱신을 트리거한다.
+ * 33m2는 Next.js 앱으로, 페이지 요청 시 미들웨어가 세션 JWT를 갱신해줌.
+ * 확장의 host_permissions 덕분에 fetch에 쿠키가 포함됨.
+ * 서버가 Set-Cookie로 새 JWT를 보내면 브라우저가 쿠키를 업데이트함.
+ */
+async function refreshSessionCookie(platform) {
+  const config = PLATFORM_COOKIES[platform];
+  if (!config) return;
+
+  try {
+    // 현재 쿠키를 읽어서 직접 Cookie 헤더로 전송
+    const currentCookie = await chrome.cookies.get({
+      url: config.url,
+      name: config.name,
+    });
+    if (!currentCookie || !currentCookie.value) return;
+
+    const res = await fetch(config.homeUrl, {
+      headers: { Cookie: `${config.name}=${currentCookie.value}` },
+      redirect: "follow",
+    });
+
+    // Set-Cookie 응답 헤더에서 새 토큰 추출
+    const setCookie = res.headers.get("set-cookie") || "";
+    const match = setCookie.match(new RegExp(`${config.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]+)`));
+
+    if (match && match[1] !== currentCookie.value) {
+      console.log(`[Hostroom] ${platform} session refreshed via Set-Cookie`);
+      return;  // cookies.onChanged 리스너가 자동으로 captureAndSendToken 호출
+    }
+
+    // Set-Cookie가 없으면 getAll로 브라우저가 쿠키를 업데이트했는지 확인
+    const freshCookie = await chrome.cookies.get({
+      url: config.url,
+      name: config.name,
+    });
+
+    if (freshCookie && freshCookie.value !== currentCookie.value) {
+      console.log(`[Hostroom] ${platform} session refreshed (cookie changed)`);
+    } else {
+      console.log(`[Hostroom] ${platform} session refresh: no cookie change (status=${res.status})`);
+    }
+  } catch (e) {
+    console.log(`[Hostroom] ${platform} session refresh failed:`, e.message || e);
+  }
 }
 
 /**
@@ -97,11 +146,16 @@ async function captureAndSendToken(platform) {
 
 /**
  * 모든 플랫폼의 쿠키를 재캡처하여 서버에 전송.
- * 33m2 같은 플랫폼의 내부 accessToken이 짧은 TTL(~3시간)이므로,
- * 브라우저의 최신 쿠키를 주기적으로 서버에 동기화해야 한다.
+ * 33m2의 JWT가 ~1시간 TTL이므로, 먼저 세션 갱신을 시도한 후 캡처한다.
  */
 async function syncAllTokens() {
   console.log("[Hostroom] Periodic token sync started");
+
+  // 33m2 세션 갱신 시도 (JWT가 짧은 TTL이므로)
+  await refreshSessionCookie("THIRTY_THREE_M2");
+  // 갱신 후 쿠키 변경이 반영될 시간 대기
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
   for (const platform of Object.keys(PLATFORM_COOKIES)) {
     await captureAndSendToken(platform);
   }
@@ -125,7 +179,7 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
   }
 });
 
-// 주기적 알람 설정 — 2시간마다 모든 토큰 재동기화
+// 주기적 알람 설정 — 30분마다 모든 토큰 재동기화
 chrome.alarms.create("syncTokens", {
   delayInMinutes: 1, // 확장 시작 1분 후 첫 실행
   periodInMinutes: SYNC_INTERVAL_MINUTES,
