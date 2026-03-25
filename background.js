@@ -137,3 +137,37 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log("[Hostroom] Extension installed/updated — syncing tokens");
   syncAllTokens();
 });
+
+// 웹페이지에서 확장으로 플랫폼 연결 요청
+chrome.runtime.onMessageExternal.addListener(
+  (message, sender, sendResponse) => {
+    if (message.type !== "CONNECT_PLATFORM") {
+      sendResponse({ success: false, error: "Unknown message type" });
+      return true;
+    }
+
+    const platform = message.platform;
+    const config = PLATFORM_COOKIES[platform];
+    if (!config) {
+      sendResponse({ success: false, error: "Unknown platform" });
+      return true;
+    }
+
+    // Try existing cookie first, then open login page
+    chrome.cookies.get({ url: config.url, name: config.name })
+      .then(async (cookie) => {
+        if (cookie && cookie.value) {
+          await captureAndSendToken(platform);
+          sendResponse({ success: true });
+        } else {
+          await chrome.tabs.create({ url: config.loginUrl });
+          sendResponse({ success: false, error: "LOGIN_REQUIRED" });
+        }
+      })
+      .catch((e) => {
+        sendResponse({ success: false, error: e.message || "Unknown error" });
+      });
+
+    return true; // keep channel open for async response
+  }
+);
