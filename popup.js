@@ -1,4 +1,4 @@
-const HOSTROOM_URL = "http://localhost:3000";
+const HOSTROOM_URL = "https://hostroom.vercel.app";
 
 const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {

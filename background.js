@@ -1,7 +1,7 @@
 // Hostroom Chrome Extension — Background Service Worker
 // 플랫폼 쿠키 변경을 감지하고 토큰을 서버로 전송한다.
 
-const HOSTROOM_URL = "http://localhost:3000";
+const HOSTROOM_URL = "https://hostroom.vercel.app";
 
 const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {
