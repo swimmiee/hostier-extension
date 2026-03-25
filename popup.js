@@ -4,7 +4,8 @@ const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {
     url: "https://web.33m2.co.kr",
     name: "__Secure-session-token",
-    loginUrl: "https://web.33m2.co.kr/login",
+    loginUrl: "https://web.33m2.co.kr/sign-in",
+    homeUrl: "https://web.33m2.co.kr/host/main",
     ttlDays: 30,
     label: "33m2",
     indicatorId: "indicator-33m2",
@@ -13,7 +14,8 @@ const PLATFORM_COOKIES = {
   ENKORSTAY: {
     url: "https://host.enko.kr",
     name: "host.access.token",
-    loginUrl: "https://host.enko.kr/login",
+    loginUrl: "https://host.enko.kr/signin",
+    homeUrl: "https://host.enko.kr",
     ttlDays: 365,
     label: "EnkorStay",
     indicatorId: "indicator-enkorstay",
@@ -23,6 +25,7 @@ const PLATFORM_COOKIES = {
     url: "https://console.liveanywhere.me",
     name: "rtoken",
     loginUrl: "https://account.liveanywhere.me",
+    homeUrl: "https://console.liveanywhere.me/host",
     ttlDays: 30,
     label: "LiveAnywhere",
     indicatorId: "indicator-liveanywhere",
@@ -84,6 +87,47 @@ function setConnected(config, connected) {
 
 async function connectPlatform(platform) {
   const config = PLATFORM_COOKIES[platform];
+
+  // 먼저 쿠키가 이미 있는지 확인 — 있으면 바로 캡처, 없으면 로그인 페이지로
+  try {
+    const cookie = await chrome.cookies.get({
+      url: config.url,
+      name: config.name,
+    });
+
+    if (cookie && cookie.value) {
+      // 쿠키가 이미 있음 — 바로 서버로 전송
+      const tokenExpiresAt = cookie.expirationDate
+        ? new Date(cookie.expirationDate * 1000).toISOString()
+        : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
+
+      const res = await fetch(`${HOSTROOM_URL}/api/platform-connections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          platform,
+          token: cookie.value,
+          tokenExpiresAt,
+        }),
+      });
+
+      if (res.ok) {
+        setConnected(config, true);
+        chrome.storage.local.set({
+          [`connection_${platform}`]: {
+            status: "ACTIVE",
+            updatedAt: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+    }
+  } catch (e) {
+    console.log("[Hostroom] Cookie check failed, opening login page:", e);
+  }
+
+  // 쿠키 없음 — 로그인 페이지로
   chrome.tabs.create({ url: config.loginUrl });
 }
 
