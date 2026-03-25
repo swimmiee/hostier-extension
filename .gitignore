@@ -4,3 +4,5 @@ browser-data/
 .superpowers/
 .omc/
 screenshots/
+.vercel
+.env*.local
