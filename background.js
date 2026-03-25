@@ -60,7 +60,10 @@ async function captureAndSendToken(platform) {
       name: config.name,
     });
 
-    if (!cookie || !cookie.value) return;
+    if (!cookie || !cookie.value) {
+      console.log(`[Hostroom] No ${config.name} cookie found for ${platform}`);
+      return;
+    }
 
     const tokenExpiresAt = cookie.expirationDate
       ? new Date(cookie.expirationDate * 1000).toISOString()
@@ -84,6 +87,8 @@ async function captureAndSendToken(platform) {
           updatedAt: new Date().toISOString(),
         },
       });
+    } else {
+      console.warn(`[Hostroom] ${platform} token sync failed: ${res.status}`);
     }
   } catch (e) {
     console.error(`[Hostroom] Failed to send ${platform} token:`, e);
