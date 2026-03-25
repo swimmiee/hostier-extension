@@ -21,7 +21,7 @@ const PLATFORM_COOKIES = {
   LIVEANYWHERE: {
     url: "https://console.liveanywhere.me",
     name: "rtoken",
-    loginUrl: "https://account.liveanywhere.me",
+    loginUrl: "https://account.liveanywhere.me/?returnUrl=https://console.liveanywhere.me",
     homeUrl: "https://console.liveanywhere.me/host",
     ttlDays: 30,
   },
