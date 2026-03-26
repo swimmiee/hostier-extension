@@ -71,16 +71,8 @@ async function refreshSessionCookie(platform) {
       redirect: "follow",
     });
 
-    // Set-Cookie 응답 헤더에서 새 토큰 추출
-    const setCookie = res.headers.get("set-cookie") || "";
-    const match = setCookie.match(new RegExp(`${config.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]+)`));
-
-    if (match && match[1] !== currentCookie.value) {
-      console.log(`[Hostroom] ${platform} session refreshed via Set-Cookie`);
-      return;  // cookies.onChanged 리스너가 자동으로 captureAndSendToken 호출
-    }
-
-    // Set-Cookie가 없으면 getAll로 브라우저가 쿠키를 업데이트했는지 확인
+    // fetch 후 브라우저가 쿠키를 업데이트했는지 확인
+    // (service worker fetch에서는 Set-Cookie 헤더 접근 불가)
     const freshCookie = await chrome.cookies.get({
       url: config.url,
       name: config.name,
