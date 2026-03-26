@@ -1,4 +1,5 @@
 const HOSTROOM_URL = "https://hostroom.vercel.app";
+const msg = chrome.i18n.getMessage.bind(chrome.i18n);
 
 const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {
@@ -37,7 +38,7 @@ async function loadStatus() {
     });
     if (!res.ok) {
       if (res.status === 401) {
-        document.getElementById("userEmail").textContent = "Hostroom에 로그인해주세요";
+        document.getElementById("userEmail").textContent = msg("pleaseLogin");
       }
       return;
     }
@@ -53,10 +54,11 @@ async function loadStatus() {
       }
     }
 
-    for (const conn of data.connections) {
-      const config = PLATFORM_COOKIES[conn.platform];
-      if (!config) continue;
-      setConnected(config, conn.status === "ACTIVE");
+    const connectedPlatforms = new Set(
+      data.connections.filter((c) => c.status === "ACTIVE").map((c) => c.platform),
+    );
+    for (const [platform, config] of Object.entries(PLATFORM_COOKIES)) {
+      setConnected(config, connectedPlatforms.has(platform));
     }
   } catch (e) {
     console.error("[Hostroom] Failed to load status:", e);
@@ -66,19 +68,57 @@ async function loadStatus() {
 function setConnected(config, connected) {
   const indicator = document.getElementById(config.indicatorId);
   const btn = document.getElementById(config.btnId);
+  btn.classList.remove("loading");
 
   if (connected) {
     indicator.textContent = "●";
     indicator.classList.add("connected");
-    btn.textContent = "연결됨";
+    btn.textContent = msg("connected");
     btn.classList.add("connected");
     btn.disabled = true;
   } else {
     indicator.textContent = "○";
     indicator.classList.remove("connected");
-    btn.textContent = "연결하기";
+    btn.textContent = msg("connect");
     btn.classList.remove("connected");
     btn.disabled = false;
+  }
+}
+
+/**
+ * 33m2의 Firebase refresh token을 IndexedDB에서 읽는다.
+ * Firebase Auth는 firebaseLocalStorageDb > firebaseLocalStorage에 저장.
+ */
+async function getFirebaseRefreshToken() {
+  try {
+    const [tab] = await chrome.tabs.query({ url: "https://web.33m2.co.kr/*" });
+    if (!tab) return null;
+
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        return new Promise((resolve) => {
+          const req = indexedDB.open("firebaseLocalStorageDb");
+          req.onsuccess = () => {
+            const db = req.result;
+            const tx = db.transaction("firebaseLocalStorage", "readonly");
+            const store = tx.objectStore("firebaseLocalStorage");
+            const getAll = store.getAll();
+            getAll.onsuccess = () => {
+              const entry = getAll.result.find((e) => e.value?.spipiRefreshToken || e.value?.refreshToken);
+              resolve(entry?.value?.spipiRefreshToken || entry?.value?.refreshToken || null);
+            };
+            getAll.onerror = () => resolve(null);
+          };
+          req.onerror = () => resolve(null);
+        });
+      },
+    });
+
+    return result?.result || null;
+  } catch (e) {
+    console.log("[Hostroom] Failed to read Firebase refresh token:", e);
+    return null;
   }
 }
 
@@ -96,6 +136,12 @@ async function connectPlatform(platform) {
         ? new Date(cookie.expirationDate * 1000).toISOString()
         : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
 
+      // 33m2인 경우 Firebase refresh token도 캡처
+      let refreshToken = null;
+      if (platform === "THIRTY_THREE_M2") {
+        refreshToken = await getFirebaseRefreshToken();
+      }
+
       const res = await fetch(`${HOSTROOM_URL}/api/platform-connections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -103,6 +149,7 @@ async function connectPlatform(platform) {
         body: JSON.stringify({
           platform,
           token: cookie.value,
+          refreshToken,
           tokenExpiresAt,
         }),
       });
@@ -116,6 +163,8 @@ async function connectPlatform(platform) {
     console.log("[Hostroom] Cookie check failed, opening login page:", e);
   }
 
+  // 연결 대기 플래그 설정 → background의 쿠키 리스너가 감지하면 전송
+  chrome.storage.local.set({ [`pending_${platform}`]: true });
   chrome.tabs.create({ url: config.loginUrl });
 }
 
@@ -135,5 +184,14 @@ document.getElementById("openWebsite").addEventListener("click", (e) => {
   e.preventDefault();
   chrome.tabs.create({ url: HOSTROOM_URL });
 });
+
+// i18n: set initial text from locale
+document.getElementById("userEmail").textContent = msg("loginRequired");
+document.getElementById("openWebsite").textContent = msg("openWebsite");
+for (const config of Object.values(PLATFORM_COOKIES)) {
+  const btn = document.getElementById(config.btnId);
+  btn.classList.add("loading");
+  btn.disabled = true;
+}
 
 loadStatus();

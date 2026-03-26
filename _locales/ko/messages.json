@@ -1,0 +1,28 @@
+{
+  "extDescription": {
+    "message": "숙소 플랫폼 예약 동기화"
+  },
+  "loginRequired": {
+    "message": "로그인 필요"
+  },
+  "pleaseLogin": {
+    "message": "Hostroom에 로그인해주세요"
+  },
+  "connect": {
+    "message": "연결하기"
+  },
+  "connected": {
+    "message": "연결됨"
+  },
+  "openWebsite": {
+    "message": "웹사이트 열기"
+  },
+  "connectionComplete": {
+    "message": "$platform$ 연결이 완료되었습니다.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  }
+}

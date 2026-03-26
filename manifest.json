@@ -2,8 +2,9 @@
   "manifest_version": 3,
   "name": "Hostroom",
   "version": "1.0.0",
-  "description": "숙소 플랫폼 예약 동기화",
-  "permissions": ["cookies", "storage", "alarms"],
+  "default_locale": "ko",
+  "description": "__MSG_extDescription__",
+  "permissions": ["cookies", "storage", "alarms", "notifications", "scripting"],
   "externally_connectable": {
     "matches": ["https://hostroom.vercel.app/*", "http://localhost:3000/*"]
   },

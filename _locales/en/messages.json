@@ -1,0 +1,28 @@
+{
+  "extDescription": {
+    "message": "Sync accommodation platform reservations"
+  },
+  "loginRequired": {
+    "message": "Login required"
+  },
+  "pleaseLogin": {
+    "message": "Please log in to Hostroom"
+  },
+  "connect": {
+    "message": "Connect"
+  },
+  "connected": {
+    "message": "Connected"
+  },
+  "openWebsite": {
+    "message": "Open website"
+  },
+  "connectionComplete": {
+    "message": "$platform$ connected successfully.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  }
+}

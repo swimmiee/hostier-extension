@@ -11,6 +11,7 @@ const PLATFORM_COOKIES = {
     loginUrl: "https://web.33m2.co.kr/sign-in",
     homeUrl: "https://web.33m2.co.kr/host/main",
     ttlDays: 30,
+    label: "33m2",
   },
   ENKORSTAY: {
     url: "https://host.enko.kr/",
@@ -18,6 +19,7 @@ const PLATFORM_COOKIES = {
     loginUrl: "https://host.enko.kr/signin",
     homeUrl: "https://host.enko.kr",
     ttlDays: 365,
+    label: "EnkorStay",
   },
   LIVEANYWHERE: {
     url: "https://console.liveanywhere.me/",
@@ -25,6 +27,7 @@ const PLATFORM_COOKIES = {
     loginUrl: "https://account.liveanywhere.me/?returnUrl=https://console.liveanywhere.me",
     homeUrl: "https://console.liveanywhere.me/host",
     ttlDays: 30,
+    label: "LiveAnywhere",
   },
 };
 
@@ -110,12 +113,46 @@ async function captureAndSendToken(platform) {
       ? new Date(cookie.expirationDate * 1000).toISOString()
       : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
 
+    // 33m2인 경우 Firebase refresh token도 캡처 시도
+    let refreshToken = undefined;
+    if (platform === "THIRTY_THREE_M2") {
+      try {
+        const [tab] = await chrome.tabs.query({ url: "https://web.33m2.co.kr/*" });
+        if (tab) {
+          const [result] = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              return new Promise((resolve) => {
+                const req = indexedDB.open("firebaseLocalStorageDb");
+                req.onsuccess = () => {
+                  const db = req.result;
+                  const tx = db.transaction("firebaseLocalStorage", "readonly");
+                  const store = tx.objectStore("firebaseLocalStorage");
+                  const getAll = store.getAll();
+                  getAll.onsuccess = () => {
+                    const entry = getAll.result.find((e) => e.value?.spipiRefreshToken || e.value?.refreshToken);
+                    resolve(entry?.value?.spipiRefreshToken || entry?.value?.refreshToken || null);
+                  };
+                  getAll.onerror = () => resolve(null);
+                };
+                req.onerror = () => resolve(null);
+              });
+            },
+          });
+          refreshToken = result?.result || undefined;
+        }
+      } catch (e) {
+        console.log(`[Hostroom] Failed to read Firebase refresh token:`, e);
+      }
+    }
+
     const res = await fetchWithSession(`${HOSTROOM_URL}/api/platform-connections`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         platform,
         token: cookie.value,
+        refreshToken,
         tokenExpiresAt,
       }),
     });
@@ -137,25 +174,46 @@ async function captureAndSendToken(platform) {
 }
 
 /**
- * 모든 플랫폼의 쿠키를 재캡처하여 서버에 전송.
- * 33m2의 JWT가 ~1시간 TTL이므로, 먼저 세션 갱신을 시도한 후 캡처한다.
+ * 서버에 이미 연결된 플랫폼 목록을 가져온다.
+ */
+async function getConnectedPlatforms() {
+  try {
+    const res = await fetchWithSession(`${HOSTROOM_URL}/api/platform-connections`);
+    if (!res.ok) return new Set();
+    const data = await res.json();
+    return new Set(data.connections.map((c) => c.platform));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * 서버에 이미 연결된 플랫폼의 쿠키만 재캡처하여 전송.
+ * 연결되지 않은 플랫폼은 건너뛴다 (유저가 직접 "연결하기"를 눌러야 함).
  */
 async function syncAllTokens() {
   console.log("[Hostroom] Periodic token sync started");
 
-  // 33m2 세션 갱신 시도 (JWT가 짧은 TTL이므로)
-  await refreshSessionCookie("THIRTY_THREE_M2");
-  // 갱신 후 쿠키 변경이 반영될 시간 대기
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const connected = await getConnectedPlatforms();
+  if (connected.size === 0) {
+    console.log("[Hostroom] No connected platforms, skipping sync");
+    return;
+  }
 
-  for (const platform of Object.keys(PLATFORM_COOKIES)) {
+  // 33m2 세션 갱신 시도 (JWT가 짧은 TTL이므로)
+  if (connected.has("THIRTY_THREE_M2")) {
+    await refreshSessionCookie("THIRTY_THREE_M2");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  for (const platform of connected) {
     await captureAndSendToken(platform);
   }
   console.log("[Hostroom] Periodic token sync complete");
 }
 
-// 쿠키 변경 감지 — 즉시 동기화
-chrome.cookies.onChanged.addListener((changeInfo) => {
+// 쿠키 변경 감지 — 연결 중이거나 이미 연결된 플랫폼만 동기화
+chrome.cookies.onChanged.addListener(async (changeInfo) => {
   if (changeInfo.removed) return;
 
   const cookie = changeInfo.cookie;
@@ -164,8 +222,28 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
     const hostname = new URL(config.url).hostname;
     const cookieDomain = cookie.domain.startsWith(".") ? cookie.domain.slice(1) : cookie.domain;
     if (cookie.name === config.name && hostname.endsWith(cookieDomain)) {
-      console.log(`[Hostroom] Detected ${platform} cookie change`);
-      captureAndSendToken(platform);
+      // 연결 대기 중(pending) 또는 이미 연결된 플랫폼만 처리
+      const storage = await chrome.storage.local.get(`pending_${platform}`);
+      const isPending = !!storage[`pending_${platform}`];
+
+      if (isPending) {
+        console.log(`[Hostroom] Detected ${platform} cookie after login — connecting`);
+        await captureAndSendToken(platform);
+        chrome.storage.local.remove(`pending_${platform}`);
+        const label = PLATFORM_COOKIES[platform]?.label || platform;
+        chrome.notifications.create(`connected_${platform}`, {
+          type: "basic",
+          title: "Hostroom",
+          message: chrome.i18n.getMessage("connectionComplete", [label]),
+          iconUrl: "icon48.png",
+        });
+      } else {
+        const connected = await getConnectedPlatforms();
+        if (connected.has(platform)) {
+          console.log(`[Hostroom] Detected ${platform} cookie change — syncing`);
+          captureAndSendToken(platform);
+        }
+      }
       break;
     }
   }
@@ -183,9 +261,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
-// 확장 설치/업데이트 시 즉시 동기화
+// 확장 설치/업데이트 시 — 이미 연결된 플랫폼만 동기화
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("[Hostroom] Extension installed/updated — syncing tokens");
+  console.log("[Hostroom] Extension installed/updated — syncing connected platforms");
   syncAllTokens();
 });
 

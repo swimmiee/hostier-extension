@@ -87,6 +87,29 @@ body {
   cursor: default;
 }
 
+.connect-btn.loading {
+  color: transparent;
+  pointer-events: none;
+  position: relative;
+}
+
+.connect-btn.loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #d1d5db;
+  border-top-color: #166534;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .footer {
   margin-top: 16px;
   text-align: center;
