@@ -270,6 +270,18 @@ chrome.runtime.onInstalled.addListener(() => {
 // 웹페이지에서 확장으로 플랫폼 연결 요청
 chrome.runtime.onMessageExternal.addListener(
   (message, sender, sendResponse) => {
+    if (message.type === "OPEN_POPUP") {
+      chrome.windows.create({
+        url: chrome.runtime.getURL("popup.html"),
+        type: "popup",
+        width: 400,
+        height: 520,
+        focused: true,
+      });
+      sendResponse({ success: true });
+      return true;
+    }
+
     if (message.type !== "CONNECT_PLATFORM") {
       sendResponse({ success: false, error: "Unknown message type" });
       return true;
