@@ -17,6 +17,13 @@
   "action": {
     "default_popup": "popup.html"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://hostroom.vercel.app/*", "http://localhost:3000/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
   "background": {
     "service_worker": "background.js"
   }
