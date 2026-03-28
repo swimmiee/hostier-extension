@@ -1,8 +1,8 @@
-// Hostroom Chrome Extension — Background Service Worker
+// hostay Chrome Extension — Background Service Worker
 // 플랫폼 쿠키 변경을 감지하고 토큰을 서버로 전송한다.
 // 또한 주기적으로 모든 쿠키를 재캡처하여 서버의 토큰을 최신 상태로 유지한다.
 
-const HOSTROOM_URL = "https://hostroom.vercel.app";
+const HOSTAY_URL = "https://hostay.vercel.app";
 
 const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {
@@ -36,10 +36,10 @@ const PLATFORM_COOKIES = {
 const SYNC_INTERVAL_MINUTES = 30;
 
 /**
- * Hostroom 세션 쿠키를 읽어서 Cookie 헤더로 포함하여 fetch.
+ * hostay 세션 쿠키를 읽어서 Cookie 헤더로 포함하여 fetch.
  */
 async function fetchWithSession(url, options = {}) {
-  const cookies = await chrome.cookies.getAll({ url: HOSTROOM_URL });
+  const cookies = await chrome.cookies.getAll({ url: HOSTAY_URL });
   const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
 
   return fetch(url, {
@@ -82,12 +82,12 @@ async function refreshSessionCookie(platform) {
     });
 
     if (freshCookie && freshCookie.value !== currentCookie.value) {
-      console.log(`[Hostroom] ${platform} session refreshed (cookie changed)`);
+      console.log(`[hostay] ${platform} session refreshed (cookie changed)`);
     } else {
-      console.log(`[Hostroom] ${platform} session refresh: no cookie change (status=${res.status})`);
+      console.log(`[hostay] ${platform} session refresh: no cookie change (status=${res.status})`);
     }
   } catch (e) {
-    console.log(`[Hostroom] ${platform} session refresh failed:`, e.message || e);
+    console.log(`[hostay] ${platform} session refresh failed:`, e.message || e);
   }
 }
 
@@ -105,7 +105,7 @@ async function captureAndSendToken(platform) {
     });
 
     if (!cookie || !cookie.value) {
-      console.log(`[Hostroom] No ${config.name} cookie found for ${platform}`);
+      console.log(`[hostay] No ${config.name} cookie found for ${platform}`);
       return;
     }
 
@@ -142,11 +142,11 @@ async function captureAndSendToken(platform) {
           refreshToken = result?.result || undefined;
         }
       } catch (e) {
-        console.log(`[Hostroom] Failed to read Firebase refresh token:`, e);
+        console.log(`[hostay] Failed to read Firebase refresh token:`, e);
       }
     }
 
-    const res = await fetchWithSession(`${HOSTROOM_URL}/api/platform-connections`, {
+    const res = await fetchWithSession(`${HOSTAY_URL}/api/platform-connections`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -158,7 +158,7 @@ async function captureAndSendToken(platform) {
     });
 
     if (res.ok) {
-      console.log(`[Hostroom] ${platform} token synced`);
+      console.log(`[hostay] ${platform} token synced`);
       chrome.storage.local.set({
         [`connection_${platform}`]: {
           status: "ACTIVE",
@@ -166,10 +166,10 @@ async function captureAndSendToken(platform) {
         },
       });
     } else {
-      console.warn(`[Hostroom] ${platform} token sync failed: ${res.status}`);
+      console.warn(`[hostay] ${platform} token sync failed: ${res.status}`);
     }
   } catch (e) {
-    console.error(`[Hostroom] Failed to send ${platform} token:`, e);
+    console.error(`[hostay] Failed to send ${platform} token:`, e);
   }
 }
 
@@ -178,7 +178,7 @@ async function captureAndSendToken(platform) {
  */
 async function getConnectedPlatforms() {
   try {
-    const res = await fetchWithSession(`${HOSTROOM_URL}/api/platform-connections`);
+    const res = await fetchWithSession(`${HOSTAY_URL}/api/platform-connections`);
     if (!res.ok) return new Set();
     const data = await res.json();
     return new Set(data.connections.map((c) => c.platform));
@@ -192,11 +192,11 @@ async function getConnectedPlatforms() {
  * 연결되지 않은 플랫폼은 건너뛴다 (유저가 직접 "연결하기"를 눌러야 함).
  */
 async function syncAllTokens() {
-  console.log("[Hostroom] Periodic token sync started");
+  console.log("[hostay] Periodic token sync started");
 
   const connected = await getConnectedPlatforms();
   if (connected.size === 0) {
-    console.log("[Hostroom] No connected platforms, skipping sync");
+    console.log("[hostay] No connected platforms, skipping sync");
     return;
   }
 
@@ -209,7 +209,7 @@ async function syncAllTokens() {
   for (const platform of connected) {
     await captureAndSendToken(platform);
   }
-  console.log("[Hostroom] Periodic token sync complete");
+  console.log("[hostay] Periodic token sync complete");
 }
 
 // 쿠키 변경 감지 — 연결 중이거나 이미 연결된 플랫폼만 동기화
@@ -227,20 +227,20 @@ chrome.cookies.onChanged.addListener(async (changeInfo) => {
       const isPending = !!storage[`pending_${platform}`];
 
       if (isPending) {
-        console.log(`[Hostroom] Detected ${platform} cookie after login — connecting`);
+        console.log(`[hostay] Detected ${platform} cookie after login — connecting`);
         await captureAndSendToken(platform);
         chrome.storage.local.remove(`pending_${platform}`);
         const label = PLATFORM_COOKIES[platform]?.label || platform;
         chrome.notifications.create(`connected_${platform}`, {
           type: "basic",
-          title: "Hostroom",
+          title: "hostay",
           message: chrome.i18n.getMessage("connectionComplete", [label]),
           iconUrl: "icon48.png",
         });
       } else {
         const connected = await getConnectedPlatforms();
         if (connected.has(platform)) {
-          console.log(`[Hostroom] Detected ${platform} cookie change — syncing`);
+          console.log(`[hostay] Detected ${platform} cookie change — syncing`);
           captureAndSendToken(platform);
         }
       }
@@ -263,7 +263,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // 확장 설치/업데이트 시 — 이미 연결된 플랫폼만 동기화
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("[Hostroom] Extension installed/updated — syncing connected platforms");
+  console.log("[hostay] Extension installed/updated — syncing connected platforms");
   syncAllTokens();
 });
 

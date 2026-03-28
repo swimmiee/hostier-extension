@@ -1,25 +1,25 @@
 {
   "manifest_version": 3,
-  "name": "Hostroom",
+  "name": "hostay",
   "version": "1.0.0",
   "default_locale": "ko",
   "description": "__MSG_extDescription__",
   "permissions": ["cookies", "storage", "alarms", "notifications", "scripting"],
   "externally_connectable": {
-    "matches": ["https://hostroom.vercel.app/*", "http://localhost:3000/*"]
+    "matches": ["https://hostay.vercel.app/*", "http://localhost:3000/*"]
   },
   "host_permissions": [
     "https://web.33m2.co.kr/*",
     "https://host.enko.kr/*",
     "https://*.liveanywhere.me/*",
-    "https://hostroom.vercel.app/*"
+    "https://hostay.vercel.app/*"
   ],
   "action": {
     "default_popup": "popup.html"
   },
   "content_scripts": [
     {
-      "matches": ["https://hostroom.vercel.app/*", "http://localhost:3000/*"],
+      "matches": ["https://hostay.vercel.app/*", "http://localhost:3000/*"],
       "js": ["content.js"],
       "run_at": "document_start"
     }

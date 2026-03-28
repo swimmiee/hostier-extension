@@ -1,4 +1,4 @@
-const HOSTROOM_URL = "https://hostroom.vercel.app";
+const HOSTAY_URL = "https://hostay.vercel.app";
 const msg = chrome.i18n.getMessage.bind(chrome.i18n);
 
 const PLATFORM_COOKIES = {
@@ -33,7 +33,7 @@ const PLATFORM_COOKIES = {
 
 async function loadStatus() {
   try {
-    const res = await fetch(`${HOSTROOM_URL}/api/platform-connections`, {
+    const res = await fetch(`${HOSTAY_URL}/api/platform-connections`, {
       credentials: "include",
     });
     if (!res.ok) {
@@ -44,7 +44,7 @@ async function loadStatus() {
     }
     const data = await res.json();
 
-    const sessionRes = await fetch(`${HOSTROOM_URL}/api/auth/session`, {
+    const sessionRes = await fetch(`${HOSTAY_URL}/api/auth/session`, {
       credentials: "include",
     });
     if (sessionRes.ok) {
@@ -61,7 +61,7 @@ async function loadStatus() {
       setConnected(config, connectedPlatforms.has(platform));
     }
   } catch (e) {
-    console.error("[Hostroom] Failed to load status:", e);
+    console.error("[hostay] Failed to load status:", e);
   }
 }
 
@@ -118,7 +118,7 @@ async function getFirebaseRefreshToken() {
 
     return result?.result || null;
   } catch (e) {
-    console.log("[Hostroom] Failed to read Firebase refresh token:", e);
+    console.log("[hostay] Failed to read Firebase refresh token:", e);
     return null;
   }
 }
@@ -143,7 +143,7 @@ async function connectPlatform(platform) {
         refreshToken = await getFirebaseRefreshToken();
       }
 
-      const res = await fetch(`${HOSTROOM_URL}/api/platform-connections`, {
+      const res = await fetch(`${HOSTAY_URL}/api/platform-connections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -161,7 +161,7 @@ async function connectPlatform(platform) {
       }
     }
   } catch (e) {
-    console.log("[Hostroom] Cookie check failed, opening login page:", e);
+    console.log("[hostay] Cookie check failed, opening login page:", e);
   }
 
   // 연결 대기 플래그 설정 → background의 쿠키 리스너가 감지하면 전송
@@ -183,7 +183,7 @@ document.getElementById("btn-liveanywhere").addEventListener("click", () => {
 
 document.getElementById("openWebsite").addEventListener("click", (e) => {
   e.preventDefault();
-  chrome.tabs.create({ url: HOSTROOM_URL });
+  chrome.tabs.create({ url: HOSTAY_URL });
 });
 
 // i18n: set initial text from locale
