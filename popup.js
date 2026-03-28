@@ -69,6 +69,7 @@ function setConnected(config, connected) {
   const indicator = document.getElementById(config.indicatorId);
   const btn = document.getElementById(config.btnId);
   btn.classList.remove("loading");
+  indicator.classList.remove("loading");
 
   if (connected) {
     indicator.textContent = "●";
@@ -190,8 +191,10 @@ document.getElementById("userEmail").textContent = msg("loginRequired");
 document.getElementById("openWebsite").textContent = msg("openWebsite");
 for (const config of Object.values(PLATFORM_COOKIES)) {
   const btn = document.getElementById(config.btnId);
+  const indicator = document.getElementById(config.indicatorId);
   btn.classList.add("loading");
   btn.disabled = true;
+  indicator.classList.add("loading");
 }
 
 loadStatus();
