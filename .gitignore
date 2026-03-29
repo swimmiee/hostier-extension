@@ -6,3 +6,4 @@ browser-data/
 screenshots/
 .vercel
 .env*.local
+terraform.tfvars
