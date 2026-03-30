@@ -1,10 +1,6 @@
 {
   "name": "strva-monorepo",
   "private": true,
-  "workspaces": [
-    "web",
-    "server"
-  ],
   "devDependencies": {
     "@prisma/client": "^7.5.0",
     "prisma": "^7.5.0"
