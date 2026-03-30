@@ -7,3 +7,6 @@ screenshots/
 .vercel
 .env*.local
 terraform.tfvars
+.worktrees/
+server/.env
+server/dist/
