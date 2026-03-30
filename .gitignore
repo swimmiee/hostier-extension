@@ -10,3 +10,5 @@ terraform.tfvars
 .worktrees/
 server/.env
 server/dist/
+ai/.env
+ai/dist/
