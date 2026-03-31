@@ -53,9 +53,7 @@ async function fetchWithSession(url, options = {}) {
 
 /**
  * 33m2 세션 쿠키 갱신을 트리거한다.
- * 33m2는 Next.js 앱으로, 페이지 요청 시 미들웨어가 세션 JWT를 갱신해줌.
- * 확장의 host_permissions 덕분에 fetch에 쿠키가 포함됨.
- * 서버가 Set-Cookie로 새 JWT를 보내면 브라우저가 쿠키를 업데이트함.
+ * 33m2는 /api/auth/refresh가 실제 세션 갱신 엔드포인트다.
  */
 async function refreshSessionCookie(platform) {
   const config = PLATFORM_COOKIES[platform];
@@ -69,10 +67,21 @@ async function refreshSessionCookie(platform) {
     });
     if (!currentCookie || !currentCookie.value) return;
 
-    const res = await fetch(config.homeUrl, {
-      headers: { Cookie: `${config.name}=${currentCookie.value}` },
-      redirect: "follow",
-    });
+    const res =
+      platform === "THIRTY_THREE_M2"
+        ? await fetch("https://web.33m2.co.kr/api/auth/refresh", {
+            method: "POST",
+            headers: {
+              Cookie: `${config.name}=${currentCookie.value}`,
+              "Content-Type": "application/json",
+            },
+            body: "{}",
+            redirect: "manual",
+          })
+        : await fetch(config.homeUrl, {
+            headers: { Cookie: `${config.name}=${currentCookie.value}` },
+            redirect: "follow",
+          });
 
     // fetch 후 브라우저가 쿠키를 업데이트했는지 확인
     // (service worker fetch에서는 Set-Cookie 헤더 접근 불가)
@@ -130,8 +139,27 @@ async function captureAndSendToken(platform) {
                   const store = tx.objectStore("firebaseLocalStorage");
                   const getAll = store.getAll();
                   getAll.onsuccess = () => {
-                    const entry = getAll.result.find((e) => e.value?.spipiRefreshToken || e.value?.refreshToken);
-                    resolve(entry?.value?.spipiRefreshToken || entry?.value?.refreshToken || null);
+                    const extractRefreshToken = (entry) => {
+                      const candidates = [
+                        entry?.value?.stsTokenManager?.refreshToken,
+                        entry?.value?.user?.stsTokenManager?.refreshToken,
+                        entry?.value?.spipiRefreshToken,
+                        entry?.value?.refreshToken,
+                        entry?.stsTokenManager?.refreshToken,
+                      ];
+
+                      return candidates.find(
+                        (candidate) =>
+                          typeof candidate === "string" &&
+                          candidate.length > 0 &&
+                          candidate.split(".").length !== 3,
+                      ) || null;
+                    };
+
+                    const token = getAll.result
+                      .map(extractRefreshToken)
+                      .find(Boolean);
+                    resolve(token || null);
                   };
                   getAll.onerror = () => resolve(null);
                 };
@@ -165,11 +193,33 @@ async function captureAndSendToken(platform) {
           updatedAt: new Date().toISOString(),
         },
       });
+      return { ok: true };
     } else {
-      console.warn(`[hostay] ${platform} token sync failed: ${res.status}`);
+      const errorBody = await res.json().catch(() => null);
+      console.warn(`[hostay] ${platform} token sync failed: ${res.status}`, errorBody);
+
+      if (
+        platform === "THIRTY_THREE_M2" &&
+        errorBody?.code === "MISSING_33M2_REFRESH_TOKEN"
+      ) {
+        chrome.notifications.create(`missing_refresh_${platform}`, {
+          type: "basic",
+          title: "hostay",
+          message:
+            "33m2 refresh token을 읽지 못했습니다. 로그인된 33m2 탭을 연 상태에서 다시 연결해주세요.",
+          iconUrl: "icon48.png",
+        });
+      }
+
+      return {
+        ok: false,
+        status: res.status,
+        errorCode: errorBody?.code,
+      };
     }
   } catch (e) {
     console.error(`[hostay] Failed to send ${platform} token:`, e);
+    return { ok: false, error: e.message || String(e) };
   }
 }
 
@@ -298,8 +348,15 @@ chrome.runtime.onMessageExternal.addListener(
     chrome.cookies.get({ url: config.url, name: config.name })
       .then(async (cookie) => {
         if (cookie && cookie.value) {
-          await captureAndSendToken(platform);
-          sendResponse({ success: true });
+          const result = await captureAndSendToken(platform);
+          if (result?.ok) {
+            sendResponse({ success: true });
+          } else {
+            sendResponse({
+              success: false,
+              error: result?.errorCode || "TOKEN_SYNC_FAILED",
+            });
+          }
         } else {
           await chrome.tabs.create({ url: config.loginUrl });
           sendResponse({ success: false, error: "LOGIN_REQUIRED" });

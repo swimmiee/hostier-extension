@@ -6,6 +6,7 @@ const PLATFORM_COOKIES = {
     url: "https://web.33m2.co.kr/",
     name: "__Secure-session-token",
     loginUrl: "https://web.33m2.co.kr/sign-in",
+    homeUrl: "https://web.33m2.co.kr/host/main",
     ttlDays: 30,
     label: "33m2",
     indicatorId: "indicator-33m2",
@@ -100,14 +101,33 @@ async function getFirebaseRefreshToken() {
       func: () => {
         return new Promise((resolve) => {
           const req = indexedDB.open("firebaseLocalStorageDb");
-          req.onsuccess = () => {
-            const db = req.result;
-            const tx = db.transaction("firebaseLocalStorage", "readonly");
-            const store = tx.objectStore("firebaseLocalStorage");
-            const getAll = store.getAll();
-            getAll.onsuccess = () => {
-              const entry = getAll.result.find((e) => e.value?.spipiRefreshToken || e.value?.refreshToken);
-              resolve(entry?.value?.spipiRefreshToken || entry?.value?.refreshToken || null);
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction("firebaseLocalStorage", "readonly");
+          const store = tx.objectStore("firebaseLocalStorage");
+          const getAll = store.getAll();
+          getAll.onsuccess = () => {
+              const extractRefreshToken = (entry) => {
+                const candidates = [
+                  entry?.value?.stsTokenManager?.refreshToken,
+                  entry?.value?.user?.stsTokenManager?.refreshToken,
+                  entry?.value?.spipiRefreshToken,
+                  entry?.value?.refreshToken,
+                  entry?.stsTokenManager?.refreshToken,
+                ];
+
+                return candidates.find(
+                  (candidate) =>
+                    typeof candidate === "string" &&
+                    candidate.length > 0 &&
+                    candidate.split(".").length !== 3,
+                ) || null;
+              };
+
+              const token = getAll.result
+                .map(extractRefreshToken)
+                .find(Boolean);
+              resolve(token || null);
             };
             getAll.onerror = () => resolve(null);
           };
@@ -121,6 +141,13 @@ async function getFirebaseRefreshToken() {
     console.log("[hostay] Failed to read Firebase refresh token:", e);
     return null;
   }
+}
+
+async function handleMissing33m2RefreshToken(config) {
+  await chrome.tabs.create({ url: config.homeUrl || config.url });
+  alert(
+    "33m2 연결에 필요한 refresh token을 읽지 못했습니다. 로그인된 33m2 탭을 연 상태에서 다시 연결해주세요.",
+  );
 }
 
 async function connectPlatform(platform) {
@@ -141,6 +168,10 @@ async function connectPlatform(platform) {
       let refreshToken = null;
       if (platform === "THIRTY_THREE_M2") {
         refreshToken = await getFirebaseRefreshToken();
+        if (!refreshToken) {
+          await handleMissing33m2RefreshToken(config);
+          return;
+        }
       }
 
       const res = await fetch(`${HOSTAY_URL}/api/platform-connections`, {
@@ -157,6 +188,15 @@ async function connectPlatform(platform) {
 
       if (res.ok) {
         setConnected(config, true);
+        return;
+      }
+
+      const errorBody = await res.json().catch(() => null);
+      if (
+        platform === "THIRTY_THREE_M2" &&
+        errorBody?.code === "MISSING_33M2_REFRESH_TOKEN"
+      ) {
+        await handleMissing33m2RefreshToken(config);
         return;
       }
     }
