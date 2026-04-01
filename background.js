@@ -36,6 +36,7 @@ const PLATFORM_COOKIES = {
 // 주기적 동기화 간격 (분)
 // 33m2의 JWT가 ~1시간 TTL이므로 30분마다 동기화
 const SYNC_INTERVAL_MINUTES = 30;
+const MANUAL_RECONNECT_ONLY_PLATFORMS = new Set(["THIRTY_THREE_M2"]);
 
 /**
  * hostay 세션 쿠키를 읽어서 Cookie 헤더로 포함하여 fetch.
@@ -269,7 +270,11 @@ async function getConnectedPlatforms() {
     );
     if (!res.ok) return new Set();
     const data = await res.json();
-    return new Set(data.connections.map((c) => c.platform));
+    return new Set(
+      data.connections
+        .filter((c) => c.status === "ACTIVE")
+        .map((c) => c.platform),
+    );
   } catch {
     return new Set();
   }
@@ -288,13 +293,13 @@ async function syncAllTokens() {
     return;
   }
 
-  // 33m2 세션 갱신 시도 (JWT가 짧은 TTL이므로)
-  if (connected.has("THIRTY_THREE_M2")) {
-    await refreshSessionCookie("THIRTY_THREE_M2");
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
   for (const platform of connected) {
+    if (MANUAL_RECONNECT_ONLY_PLATFORMS.has(platform)) {
+      console.log(
+        `[hostay] Skipping periodic token sync for ${platform} (manual reconnect only)`,
+      );
+      continue;
+    }
     await captureAndSendToken(platform);
   }
   console.log("[hostay] Periodic token sync complete");
@@ -331,9 +336,16 @@ chrome.cookies.onChanged.addListener(async (changeInfo) => {
         });
       } else {
         const connected = await getConnectedPlatforms();
-        if (connected.has(platform)) {
+        if (
+          connected.has(platform) &&
+          !MANUAL_RECONNECT_ONLY_PLATFORMS.has(platform)
+        ) {
           console.log(`[hostay] Detected ${platform} cookie change — syncing`);
           captureAndSendToken(platform);
+        } else if (connected.has(platform)) {
+          console.log(
+            `[hostay] Detected ${platform} cookie change — ignoring automatic sync (manual reconnect only)`,
+          );
         }
       }
       break;
