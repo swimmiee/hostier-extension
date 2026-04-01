@@ -5,6 +5,7 @@ const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {
     url: "https://web.33m2.co.kr/",
     name: "__Secure-session-token",
+    firebaseSessionName: "__firebase_session",
     loginUrl: "https://web.33m2.co.kr/sign-in",
     homeUrl: "https://web.33m2.co.kr/host/main",
     ttlDays: 30,
@@ -24,7 +25,8 @@ const PLATFORM_COOKIES = {
   LIVEANYWHERE: {
     url: "https://console.liveanywhere.me/",
     name: "rtoken",
-    loginUrl: "https://account.liveanywhere.me/?returnUrl=https://console.liveanywhere.me",
+    loginUrl:
+      "https://account.liveanywhere.me/?returnUrl=https://console.liveanywhere.me",
     ttlDays: 30,
     label: "LiveAnywhere",
     indicatorId: "indicator-liveanywhere",
@@ -56,7 +58,9 @@ async function loadStatus() {
     }
 
     const connectedPlatforms = new Set(
-      data.connections.filter((c) => c.status === "ACTIVE").map((c) => c.platform),
+      data.connections
+        .filter((c) => c.status === "ACTIVE")
+        .map((c) => c.platform),
     );
     for (const [platform, config] of Object.entries(PLATFORM_COOKIES)) {
       setConnected(config, connectedPlatforms.has(platform));
@@ -101,12 +105,12 @@ async function getFirebaseRefreshToken() {
       func: () => {
         return new Promise((resolve) => {
           const req = indexedDB.open("firebaseLocalStorageDb");
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction("firebaseLocalStorage", "readonly");
-          const store = tx.objectStore("firebaseLocalStorage");
-          const getAll = store.getAll();
-          getAll.onsuccess = () => {
+          req.onsuccess = () => {
+            const db = req.result;
+            const tx = db.transaction("firebaseLocalStorage", "readonly");
+            const store = tx.objectStore("firebaseLocalStorage");
+            const getAll = store.getAll();
+            getAll.onsuccess = () => {
               const extractRefreshToken = (entry) => {
                 const candidates = [
                   entry?.value?.stsTokenManager?.refreshToken,
@@ -116,12 +120,14 @@ async function getFirebaseRefreshToken() {
                   entry?.stsTokenManager?.refreshToken,
                 ];
 
-                return candidates.find(
-                  (candidate) =>
-                    typeof candidate === "string" &&
-                    candidate.length > 0 &&
-                    candidate.split(".").length !== 3,
-                ) || null;
+                return (
+                  candidates.find(
+                    (candidate) =>
+                      typeof candidate === "string" &&
+                      candidate.length > 0 &&
+                      candidate.split(".").length !== 3,
+                  ) || null
+                );
               };
 
               const token = getAll.result
@@ -166,12 +172,19 @@ async function connectPlatform(platform) {
 
       // 33m2인 경우 Firebase refresh token도 캡처
       let refreshToken = null;
+      let firebaseSessionToken = null;
       if (platform === "THIRTY_THREE_M2") {
         refreshToken = await getFirebaseRefreshToken();
         if (!refreshToken) {
           await handleMissing33m2RefreshToken(config);
           return;
         }
+
+        const firebaseSessionCookie = await chrome.cookies.get({
+          url: config.url,
+          name: config.firebaseSessionName,
+        });
+        firebaseSessionToken = firebaseSessionCookie?.value || null;
       }
 
       const res = await fetch(`${HOSTAY_URL}/api/platform-connections`, {
@@ -182,6 +195,7 @@ async function connectPlatform(platform) {
           platform,
           token: cookie.value,
           refreshToken,
+          firebaseSessionToken,
           tokenExpiresAt,
         }),
       });

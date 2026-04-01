@@ -8,7 +8,9 @@ screenshots/
 .env*.local
 terraform.tfvars
 .worktrees/
+.omx/
 server/.env
 server/dist/
 ai/.env
 ai/dist/
+.gstack/

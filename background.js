@@ -8,6 +8,7 @@ const PLATFORM_COOKIES = {
   THIRTY_THREE_M2: {
     url: "https://web.33m2.co.kr/",
     name: "__Secure-session-token",
+    firebaseSessionName: "__firebase_session",
     loginUrl: "https://web.33m2.co.kr/sign-in",
     homeUrl: "https://web.33m2.co.kr/host/main",
     ttlDays: 30,
@@ -24,7 +25,8 @@ const PLATFORM_COOKIES = {
   LIVEANYWHERE: {
     url: "https://console.liveanywhere.me/",
     name: "rtoken",
-    loginUrl: "https://account.liveanywhere.me/?returnUrl=https://console.liveanywhere.me",
+    loginUrl:
+      "https://account.liveanywhere.me/?returnUrl=https://console.liveanywhere.me",
     homeUrl: "https://console.liveanywhere.me/host",
     ttlDays: 30,
     label: "LiveAnywhere",
@@ -66,13 +68,27 @@ async function refreshSessionCookie(platform) {
       name: config.name,
     });
     if (!currentCookie || !currentCookie.value) return;
+    const firebaseSessionCookie = config.firebaseSessionName
+      ? await chrome.cookies.get({
+          url: config.url,
+          name: config.firebaseSessionName,
+        })
+      : null;
+    const cookieHeader = [
+      `${config.name}=${currentCookie.value}`,
+      firebaseSessionCookie?.value
+        ? `${config.firebaseSessionName}=${firebaseSessionCookie.value}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("; ");
 
     const res =
       platform === "THIRTY_THREE_M2"
         ? await fetch("https://web.33m2.co.kr/api/auth/refresh", {
             method: "POST",
             headers: {
-              Cookie: `${config.name}=${currentCookie.value}`,
+              Cookie: cookieHeader,
               "Content-Type": "application/json",
             },
             body: "{}",
@@ -93,7 +109,9 @@ async function refreshSessionCookie(platform) {
     if (freshCookie && freshCookie.value !== currentCookie.value) {
       console.log(`[hostay] ${platform} session refreshed (cookie changed)`);
     } else {
-      console.log(`[hostay] ${platform} session refresh: no cookie change (status=${res.status})`);
+      console.log(
+        `[hostay] ${platform} session refresh: no cookie change (status=${res.status})`,
+      );
     }
   } catch (e) {
     console.log(`[hostay] ${platform} session refresh failed:`, e.message || e);
@@ -124,9 +142,18 @@ async function captureAndSendToken(platform) {
 
     // 33m2인 경우 Firebase refresh token도 캡처 시도
     let refreshToken = undefined;
+    let firebaseSessionToken = undefined;
     if (platform === "THIRTY_THREE_M2") {
       try {
-        const [tab] = await chrome.tabs.query({ url: "https://web.33m2.co.kr/*" });
+        const firebaseSessionCookie = await chrome.cookies.get({
+          url: config.url,
+          name: config.firebaseSessionName,
+        });
+        firebaseSessionToken = firebaseSessionCookie?.value || undefined;
+
+        const [tab] = await chrome.tabs.query({
+          url: "https://web.33m2.co.kr/*",
+        });
         if (tab) {
           const [result] = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
@@ -148,12 +175,14 @@ async function captureAndSendToken(platform) {
                         entry?.stsTokenManager?.refreshToken,
                       ];
 
-                      return candidates.find(
-                        (candidate) =>
-                          typeof candidate === "string" &&
-                          candidate.length > 0 &&
-                          candidate.split(".").length !== 3,
-                      ) || null;
+                      return (
+                        candidates.find(
+                          (candidate) =>
+                            typeof candidate === "string" &&
+                            candidate.length > 0 &&
+                            candidate.split(".").length !== 3,
+                        ) || null
+                      );
                     };
 
                     const token = getAll.result
@@ -174,16 +203,20 @@ async function captureAndSendToken(platform) {
       }
     }
 
-    const res = await fetchWithSession(`${HOSTAY_URL}/api/platform-connections`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        platform,
-        token: cookie.value,
-        refreshToken,
-        tokenExpiresAt,
-      }),
-    });
+    const res = await fetchWithSession(
+      `${HOSTAY_URL}/api/platform-connections`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform,
+          token: cookie.value,
+          refreshToken,
+          firebaseSessionToken,
+          tokenExpiresAt,
+        }),
+      },
+    );
 
     if (res.ok) {
       console.log(`[hostay] ${platform} token synced`);
@@ -196,7 +229,10 @@ async function captureAndSendToken(platform) {
       return { ok: true };
     } else {
       const errorBody = await res.json().catch(() => null);
-      console.warn(`[hostay] ${platform} token sync failed: ${res.status}`, errorBody);
+      console.warn(
+        `[hostay] ${platform} token sync failed: ${res.status}`,
+        errorBody,
+      );
 
       if (
         platform === "THIRTY_THREE_M2" &&
@@ -228,7 +264,9 @@ async function captureAndSendToken(platform) {
  */
 async function getConnectedPlatforms() {
   try {
-    const res = await fetchWithSession(`${HOSTAY_URL}/api/platform-connections`);
+    const res = await fetchWithSession(
+      `${HOSTAY_URL}/api/platform-connections`,
+    );
     if (!res.ok) return new Set();
     const data = await res.json();
     return new Set(data.connections.map((c) => c.platform));
@@ -270,14 +308,18 @@ chrome.cookies.onChanged.addListener(async (changeInfo) => {
 
   for (const [platform, config] of Object.entries(PLATFORM_COOKIES)) {
     const hostname = new URL(config.url).hostname;
-    const cookieDomain = cookie.domain.startsWith(".") ? cookie.domain.slice(1) : cookie.domain;
+    const cookieDomain = cookie.domain.startsWith(".")
+      ? cookie.domain.slice(1)
+      : cookie.domain;
     if (cookie.name === config.name && hostname.endsWith(cookieDomain)) {
       // 연결 대기 중(pending) 또는 이미 연결된 플랫폼만 처리
       const storage = await chrome.storage.local.get(`pending_${platform}`);
       const isPending = !!storage[`pending_${platform}`];
 
       if (isPending) {
-        console.log(`[hostay] Detected ${platform} cookie after login — connecting`);
+        console.log(
+          `[hostay] Detected ${platform} cookie after login — connecting`,
+        );
         await captureAndSendToken(platform);
         chrome.storage.local.remove(`pending_${platform}`);
         const label = PLATFORM_COOKIES[platform]?.label || platform;
@@ -313,7 +355,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // 확장 설치/업데이트 시 — 이미 연결된 플랫폼만 동기화
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("[hostay] Extension installed/updated — syncing connected platforms");
+  console.log(
+    "[hostay] Extension installed/updated — syncing connected platforms",
+  );
   syncAllTokens();
 });
 
@@ -345,7 +389,8 @@ chrome.runtime.onMessageExternal.addListener(
     }
 
     // Try existing cookie first, then open login page
-    chrome.cookies.get({ url: config.url, name: config.name })
+    chrome.cookies
+      .get({ url: config.url, name: config.name })
       .then(async (cookie) => {
         if (cookie && cookie.value) {
           const result = await captureAndSendToken(platform);
@@ -367,5 +412,5 @@ chrome.runtime.onMessageExternal.addListener(
       });
 
     return true; // keep channel open for async response
-  }
+  },
 );
