@@ -13,12 +13,12 @@
     <rect x="326" y="348" width="42" height="42" rx="7" fill="#1C1C1C" />
   </g>
   <text
-    x="156"
+    x="142"
     y="112"
     fill="#1C1C1C"
     font-family="'IBM Plex Sans', 'Geist', 'Helvetica Neue', Arial, sans-serif"
     font-size="92"
-    font-weight="500"
+    font-weight="600"
     letter-spacing="-0.05em"
   >
     Hostier
