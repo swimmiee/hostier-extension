@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 144" width="620" height="144" fill="none">
+  <path
+    d="M74 108V48L131 24"
+    stroke="#1C1C1C"
+    stroke-width="14"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <rect x="104" y="82" width="14" height="14" rx="2.5" fill="#1C1C1C" />
+  <rect x="122" y="82" width="14" height="14" rx="2.5" fill="#1C1C1C" />
+  <rect x="104" y="100" width="14" height="14" rx="2.5" fill="#1C1C1C" />
+  <rect x="122" y="100" width="14" height="14" rx="2.5" fill="#1C1C1C" />
+  <text
+    x="188"
+    y="104"
+    fill="#1C1C1C"
+    font-family="'IBM Plex Sans', 'Geist', 'Helvetica Neue', Arial, sans-serif"
+    font-size="92"
+    font-weight="600"
+    letter-spacing="-0.06em"
+  >
+    Hostier
+  </text>
+</svg>
