@@ -1,18 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "hostay",
-  "version": "1.0.2",
+  "name": "Hostier",
+  "version": "2.0.0",
   "default_locale": "ko",
   "description": "__MSG_extDescription__",
   "permissions": ["cookies", "storage", "alarms", "notifications", "scripting"],
   "externally_connectable": {
-    "matches": ["https://hostay.vercel.app/*", "http://localhost:3000/*"]
+    "matches": [
+      "https://hostier.vercel.app/*",
+      "http://localhost:3000/*"
+    ]
   },
   "host_permissions": [
     "https://web.33m2.co.kr/*",
     "https://host.enko.kr/*",
     "https://*.liveanywhere.me/*",
-    "https://hostay.vercel.app/*"
+    "https://hostier.vercel.app/*"
   ],
   "icons": {
     "16": "icon16.png",
@@ -29,7 +32,10 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://hostay.vercel.app/*", "http://localhost:3000/*"],
+      "matches": [
+        "https://hostier.vercel.app/*",
+        "http://localhost:3000/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_start"
     }
