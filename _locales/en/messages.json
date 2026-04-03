@@ -17,6 +17,39 @@
   "openWebsite": {
     "message": "Open website"
   },
+  "privacyPolicy": {
+    "message": "View privacy policy"
+  },
+  "refreshStatus": {
+    "message": "Refresh"
+  },
+  "loginGateEyebrow": {
+    "message": "Hostier sign-in required"
+  },
+  "loginGateTitle": {
+    "message": "Sign in to Hostier before connecting platforms"
+  },
+  "loginGateBody": {
+    "message": "The extension only syncs platform cookies and tokens after it can verify the Hostier account that will receive them."
+  },
+  "loginGatePrimary": {
+    "message": "Open Hostier sign-in"
+  },
+  "consentEyebrow": {
+    "message": "One-time consent"
+  },
+  "consentTitle": {
+    "message": "Consent is required before the first platform connection"
+  },
+  "consentBody": {
+    "message": "Hostier reads the selected platform's login cookies and required authentication data, then sends them to the Hostier server to support reservation sync."
+  },
+  "consentCheckbox": {
+    "message": "I agree to send the required cookies and authentication data for platform connection."
+  },
+  "consentPrimary": {
+    "message": "Agree and continue"
+  },
   "connectionComplete": {
     "message": "$platform$ connected successfully.",
     "placeholders": {

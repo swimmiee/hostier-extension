@@ -1,4 +1,8 @@
 const HOSTIER_URL = "https://hostier.vercel.app";
+const HOSTIER_LOGIN_URL = `${HOSTIER_URL}/login`;
+const PRIVACY_POLICY_URL = `${HOSTIER_URL}/privacy`;
+const CONSENT_STORAGE_KEY = "hostierConsentVersion";
+const CONSENT_VERSION = "2026-04-03";
 const msg = chrome.i18n.getMessage.bind(chrome.i18n);
 
 const PLATFORM_COOKIES = {
@@ -34,6 +38,142 @@ const PLATFORM_COOKIES = {
   },
 };
 
+const ui = {
+  userEmail: document.getElementById("userEmail"),
+  openWebsite: document.getElementById("openWebsite"),
+  privacyLink: document.getElementById("privacyLink"),
+  guard: document.getElementById("guard"),
+  guardEyebrow: document.getElementById("guardEyebrow"),
+  guardTitle: document.getElementById("guardTitle"),
+  guardBody: document.getElementById("guardBody"),
+  guardCheckWrap: document.getElementById("guardCheckWrap"),
+  guardCheckbox: document.getElementById("guardCheckbox"),
+  guardCheckboxLabel: document.getElementById("guardCheckboxLabel"),
+  guardPrimary: document.getElementById("guardPrimary"),
+  guardSecondary: document.getElementById("guardSecondary"),
+};
+
+let currentSession = null;
+
+function setGuardState({
+  eyebrow,
+  title,
+  body,
+  checkboxLabel,
+  primaryLabel,
+  primaryAction,
+  primaryDisabled = false,
+  secondaryLabel,
+  secondaryAction,
+}) {
+  document.body.classList.add("guard-active");
+  ui.guard.hidden = false;
+  ui.guardEyebrow.textContent = eyebrow;
+  ui.guardTitle.textContent = title;
+  ui.guardBody.textContent = body;
+
+  const showCheckbox = Boolean(checkboxLabel);
+  ui.guardCheckWrap.hidden = !showCheckbox;
+  ui.guardCheckbox.checked = false;
+  ui.guardCheckboxLabel.textContent = checkboxLabel || "";
+
+  ui.guardPrimary.textContent = primaryLabel;
+  ui.guardPrimary.disabled = primaryDisabled;
+  ui.guardPrimary.onclick = primaryAction;
+
+  if (secondaryLabel) {
+    ui.guardSecondary.hidden = false;
+    ui.guardSecondary.textContent = secondaryLabel;
+    ui.guardSecondary.onclick = secondaryAction;
+  } else {
+    ui.guardSecondary.hidden = true;
+    ui.guardSecondary.onclick = null;
+  }
+}
+
+function clearGuardState() {
+  document.body.classList.remove("guard-active");
+  ui.guard.hidden = true;
+  ui.guardCheckbox.checked = false;
+  ui.guardCheckbox.onchange = null;
+}
+
+function setButtonsDisabled(disabled) {
+  for (const config of Object.values(PLATFORM_COOKIES)) {
+    const btn = document.getElementById(config.btnId);
+    if (!btn.classList.contains("connected")) {
+      btn.disabled = disabled;
+    }
+  }
+}
+
+async function getStoredConsentVersion() {
+  const stored = await chrome.storage.local.get(CONSENT_STORAGE_KEY);
+  return stored[CONSENT_STORAGE_KEY] || null;
+}
+
+async function acceptConsent() {
+  await chrome.storage.local.set({ [CONSENT_STORAGE_KEY]: CONSENT_VERSION });
+  await initializePopup();
+}
+
+function openUrl(url) {
+  chrome.tabs.create({ url });
+}
+
+async function fetchHostierSession() {
+  try {
+    const res = await fetch(`${HOSTIER_URL}/api/auth/session`, {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const session = await res.json();
+    if (!session?.user) return null;
+    return session;
+  } catch (e) {
+    console.error("[hostier] Failed to load Hostier session:", e);
+    return null;
+  }
+}
+
+function showLoginGate() {
+  ui.userEmail.textContent = msg("loginRequired");
+  setButtonsDisabled(true);
+  setGuardState({
+    eyebrow: msg("loginGateEyebrow"),
+    title: msg("loginGateTitle"),
+    body: msg("loginGateBody"),
+    primaryLabel: msg("loginGatePrimary"),
+    primaryAction: () => openUrl(HOSTIER_LOGIN_URL),
+    secondaryLabel: msg("refreshStatus"),
+    secondaryAction: () => {
+      void initializePopup();
+    },
+  });
+}
+
+function showConsentGate() {
+  ui.userEmail.textContent = currentSession?.user?.email || msg("loginRequired");
+  setButtonsDisabled(true);
+  setGuardState({
+    eyebrow: msg("consentEyebrow"),
+    title: msg("consentTitle"),
+    body: msg("consentBody"),
+    checkboxLabel: msg("consentCheckbox"),
+    primaryLabel: msg("consentPrimary"),
+    primaryAction: () => {
+      void acceptConsent();
+    },
+    primaryDisabled: true,
+    secondaryLabel: msg("privacyPolicy"),
+    secondaryAction: () => openUrl(PRIVACY_POLICY_URL),
+  });
+
+  ui.guardCheckbox.onchange = () => {
+    ui.guardPrimary.disabled = !ui.guardCheckbox.checked;
+  };
+}
+
 async function loadStatus() {
   try {
     const res = await fetch(`${HOSTIER_URL}/api/platform-connections`, {
@@ -41,27 +181,21 @@ async function loadStatus() {
     });
     if (!res.ok) {
       if (res.status === 401) {
-        document.getElementById("userEmail").textContent = msg("pleaseLogin");
+        showLoginGate();
       }
       return;
     }
     const data = await res.json();
-
-    const sessionRes = await fetch(`${HOSTIER_URL}/api/auth/session`, {
-      credentials: "include",
-    });
-    if (sessionRes.ok) {
-      const session = await sessionRes.json();
-      if (session?.user?.email) {
-        document.getElementById("userEmail").textContent = session.user.email;
-      }
-    }
 
     const connectedPlatforms = new Set(
       data.connections
         .filter((c) => c.status === "ACTIVE")
         .map((c) => c.platform),
     );
+
+    clearGuardState();
+    setButtonsDisabled(false);
+
     for (const [platform, config] of Object.entries(PLATFORM_COOKIES)) {
       setConnected(config, connectedPlatforms.has(platform));
     }
@@ -200,6 +334,11 @@ async function connectPlatform(platform) {
         }),
       });
 
+      if (res.status === 401) {
+        showLoginGate();
+        return;
+      }
+
       if (res.ok) {
         setConnected(config, true);
         return;
@@ -223,6 +362,24 @@ async function connectPlatform(platform) {
   chrome.tabs.create({ url: config.loginUrl });
 }
 
+async function initializePopup() {
+  currentSession = await fetchHostierSession();
+  if (!currentSession) {
+    showLoginGate();
+    return;
+  }
+
+  ui.userEmail.textContent = currentSession.user.email || msg("loginRequired");
+
+  const consentVersion = await getStoredConsentVersion();
+  if (consentVersion !== CONSENT_VERSION) {
+    showConsentGate();
+    return;
+  }
+
+  await loadStatus();
+}
+
 document.getElementById("btn-33m2").addEventListener("click", () => {
   connectPlatform("THIRTY_THREE_M2");
 });
@@ -241,8 +398,10 @@ document.getElementById("openWebsite").addEventListener("click", (e) => {
 });
 
 // i18n: set initial text from locale
-document.getElementById("userEmail").textContent = msg("loginRequired");
-document.getElementById("openWebsite").textContent = msg("openWebsite");
+ui.userEmail.textContent = msg("loginRequired");
+ui.openWebsite.textContent = msg("openWebsite");
+ui.privacyLink.textContent = msg("privacyPolicy");
+ui.privacyLink.href = PRIVACY_POLICY_URL;
 for (const config of Object.values(PLATFORM_COOKIES)) {
   const btn = document.getElementById(config.btnId);
   const indicator = document.getElementById(config.indicatorId);
@@ -251,4 +410,4 @@ for (const config of Object.values(PLATFORM_COOKIES)) {
   indicator.classList.add("loading");
 }
 
-loadStatus();
+initializePopup();

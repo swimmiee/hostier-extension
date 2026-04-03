@@ -17,6 +17,39 @@
   "openWebsite": {
     "message": "웹사이트 열기"
   },
+  "privacyPolicy": {
+    "message": "개인정보처리방침 보기"
+  },
+  "refreshStatus": {
+    "message": "다시 확인"
+  },
+  "loginGateEyebrow": {
+    "message": "Hostier 로그인 필요"
+  },
+  "loginGateTitle": {
+    "message": "먼저 Hostier 웹사이트에 로그인해주세요"
+  },
+  "loginGateBody": {
+    "message": "확장 프로그램은 Hostier 계정과 연결된 상태에서만 플랫폼 쿠키와 토큰을 안전하게 전송할 수 있습니다."
+  },
+  "loginGatePrimary": {
+    "message": "Hostier 로그인 열기"
+  },
+  "consentEyebrow": {
+    "message": "최초 1회 동의"
+  },
+  "consentTitle": {
+    "message": "플랫폼 연결 전에 정보 처리 동의가 필요합니다"
+  },
+  "consentBody": {
+    "message": "Hostier는 예약 동기화를 위해 선택한 플랫폼의 로그인 쿠키와 필요한 인증 정보를 읽어 Hostier 서버로 전송합니다."
+  },
+  "consentCheckbox": {
+    "message": "연결 시 필요한 쿠키 및 인증 정보 전송에 동의합니다."
+  },
+  "consentPrimary": {
+    "message": "동의하고 계속"
+  },
   "connectionComplete": {
     "message": "$platform$ 연결이 완료되었습니다.",
     "placeholders": {
