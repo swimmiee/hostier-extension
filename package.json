@@ -1,6 +1,10 @@
 {
   "name": "strva-monorepo",
   "private": true,
+  "scripts": {
+    "extension:configure:dev": "node ./scripts/configure-extension.mjs dev",
+    "extension:configure:prod": "node ./scripts/configure-extension.mjs prod"
+  },
   "devDependencies": {
     "@prisma/client": "^7.5.0",
     "prisma": "^7.5.0"

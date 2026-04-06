@@ -4,18 +4,18 @@
   "version": "2.0.0",
   "default_locale": "ko",
   "description": "__MSG_extDescription__",
-  "permissions": ["cookies", "storage", "alarms", "notifications", "scripting"],
-  "externally_connectable": {
-    "matches": [
-      "https://hostier.vercel.app/*",
-      "http://localhost:3000/*"
-    ]
-  },
+  "permissions": [
+    "cookies",
+    "storage",
+    "scripting"
+  ],
   "host_permissions": [
+    "https://hostier.vercel.app/*"
+  ],
+  "optional_host_permissions": [
     "https://web.33m2.co.kr/*",
     "https://host.enko.kr/*",
-    "https://*.liveanywhere.me/*",
-    "https://hostier.vercel.app/*"
+    "https://*.liveanywhere.me/*"
   ],
   "icons": {
     "16": "icon16.png",
@@ -29,18 +29,5 @@
       "48": "icon48.png",
       "128": "icon128.png"
     }
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://hostier.vercel.app/*",
-        "http://localhost:3000/*"
-      ],
-      "js": ["content.js"],
-      "run_at": "document_start"
-    }
-  ],
-  "background": {
-    "service_worker": "background.js"
   }
 }

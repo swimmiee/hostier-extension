@@ -1,13 +1,21 @@
-const HOSTIER_URL = "https://hostier.vercel.app";
+function getExtensionConfig() {
+  const config = globalThis.HOSTIER_EXTENSION_CONFIG;
+  if (!config?.hostierUrl) {
+    throw new Error("HOSTIER_EXTENSION_CONFIG.hostierUrl is not configured");
+  }
+  return config;
+}
+
+const HOSTIER_URL = getExtensionConfig().hostierUrl.replace(/\/$/, "");
 const HOSTIER_LOGIN_URL = `${HOSTIER_URL}/login`;
 const PRIVACY_POLICY_URL = `${HOSTIER_URL}/privacy`;
-const CONSENT_STORAGE_KEY = "hostierConsentVersion";
-const CONSENT_VERSION = "2026-04-03";
+const CONSENT_VERSION = "2026-04-06";
 const msg = chrome.i18n.getMessage.bind(chrome.i18n);
 
-const PLATFORM_COOKIES = {
+const PLATFORM_CONFIGS = {
   THIRTY_THREE_M2: {
     url: "https://web.33m2.co.kr/",
+    origin: "https://web.33m2.co.kr/*",
     name: "__Secure-session-token",
     firebaseSessionName: "__firebase_session",
     loginUrl: "https://web.33m2.co.kr/sign-in",
@@ -16,36 +24,47 @@ const PLATFORM_COOKIES = {
     label: "33m2",
     indicatorId: "indicator-33m2",
     btnId: "btn-33m2",
+    metaId: "meta-33m2",
+    autoMaintainEnabled: true,
   },
   ENKORSTAY: {
     url: "https://host.enko.kr/",
+    origin: "https://host.enko.kr/*",
     name: "host.access.token",
     loginUrl: "https://host.enko.kr/signin",
     ttlDays: 365,
     label: "EnkorStay",
     indicatorId: "indicator-enkorstay",
     btnId: "btn-enkorstay",
+    metaId: "meta-enkorstay",
+    autoMaintainEnabled: false,
   },
   LIVEANYWHERE: {
     url: "https://console.liveanywhere.me/",
+    origin: "https://*.liveanywhere.me/*",
     name: "rtoken",
     loginUrl:
       "https://account.liveanywhere.me/?returnUrl=https://console.liveanywhere.me",
+    homeUrl: "https://console.liveanywhere.me/host",
     ttlDays: 30,
     label: "LiveAnywhere",
     indicatorId: "indicator-liveanywhere",
     btnId: "btn-liveanywhere",
+    metaId: "meta-liveanywhere",
+    autoMaintainEnabled: false,
   },
 };
 
 const ui = {
   userEmail: document.getElementById("userEmail"),
+  status: document.getElementById("status"),
   openWebsite: document.getElementById("openWebsite"),
   privacyLink: document.getElementById("privacyLink"),
   guard: document.getElementById("guard"),
   guardEyebrow: document.getElementById("guardEyebrow"),
   guardTitle: document.getElementById("guardTitle"),
   guardBody: document.getElementById("guardBody"),
+  guardList: document.getElementById("guardList"),
   guardCheckWrap: document.getElementById("guardCheckWrap"),
   guardCheckbox: document.getElementById("guardCheckbox"),
   guardCheckboxLabel: document.getElementById("guardCheckboxLabel"),
@@ -54,11 +73,29 @@ const ui = {
 };
 
 let currentSession = null;
+const connectionMap = new Map();
+
+function openUrl(url) {
+  chrome.tabs.create({ url });
+}
+
+function showStatus(kind, message) {
+  ui.status.hidden = false;
+  ui.status.className = `status ${kind}`;
+  ui.status.textContent = message;
+}
+
+function clearStatus() {
+  ui.status.hidden = true;
+  ui.status.className = "status";
+  ui.status.textContent = "";
+}
 
 function setGuardState({
   eyebrow,
   title,
   body,
+  items = [],
   checkboxLabel,
   primaryLabel,
   primaryAction,
@@ -71,6 +108,14 @@ function setGuardState({
   ui.guardEyebrow.textContent = eyebrow;
   ui.guardTitle.textContent = title;
   ui.guardBody.textContent = body;
+
+  ui.guardList.hidden = items.length === 0;
+  ui.guardList.textContent = "";
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.textContent = item;
+    ui.guardList.append(li);
+  }
 
   const showCheckbox = Boolean(checkboxLabel);
   ui.guardCheckWrap.hidden = !showCheckbox;
@@ -94,31 +139,89 @@ function setGuardState({
 function clearGuardState() {
   document.body.classList.remove("guard-active");
   ui.guard.hidden = true;
+  ui.guardList.hidden = true;
+  ui.guardList.textContent = "";
   ui.guardCheckbox.checked = false;
   ui.guardCheckbox.onchange = null;
 }
 
 function setButtonsDisabled(disabled) {
-  for (const config of Object.values(PLATFORM_COOKIES)) {
+  for (const config of Object.values(PLATFORM_CONFIGS)) {
     const btn = document.getElementById(config.btnId);
-    if (!btn.classList.contains("connected")) {
+    if (!btn.classList.contains("connected") && !btn.classList.contains("loading")) {
       btn.disabled = disabled;
     }
   }
 }
 
-async function getStoredConsentVersion() {
-  const stored = await chrome.storage.local.get(CONSENT_STORAGE_KEY);
-  return stored[CONSENT_STORAGE_KEY] || null;
+function setPlatformLoading(platform, loading) {
+  const config = PLATFORM_CONFIGS[platform];
+  const btn = document.getElementById(config.btnId);
+  const indicator = document.getElementById(config.indicatorId);
+
+  if (loading) {
+    btn.classList.add("loading");
+    btn.classList.remove("connected", "reconnect");
+    btn.disabled = true;
+    btn.textContent = msg("connecting");
+    indicator.classList.add("loading");
+  } else {
+    btn.classList.remove("loading");
+    indicator.classList.remove("loading");
+  }
 }
 
-async function acceptConsent() {
-  await chrome.storage.local.set({ [CONSENT_STORAGE_KEY]: CONSENT_VERSION });
-  await initializePopup();
+function getDefaultMeta(platform) {
+  return PLATFORM_CONFIGS[platform].autoMaintainEnabled
+    ? msg("autoMaintainAvailable")
+    : msg("manualReconnectOnly");
 }
 
-function openUrl(url) {
-  chrome.tabs.create({ url });
+function setPlatformState(platform, connection) {
+  const config = PLATFORM_CONFIGS[platform];
+  const indicator = document.getElementById(config.indicatorId);
+  const btn = document.getElementById(config.btnId);
+  const meta = document.getElementById(config.metaId);
+  const isActive = connection?.status === "ACTIVE";
+  const isExpired = connection?.status === "EXPIRED";
+
+  btn.classList.remove("loading", "connected", "reconnect");
+  indicator.classList.remove("loading", "connected", "expired");
+
+  if (isActive) {
+    indicator.classList.add("connected");
+    indicator.textContent = "●";
+    btn.classList.add("connected");
+    btn.textContent = msg("connected");
+    btn.disabled = true;
+    meta.textContent = connection?.autoMaintainEnabled
+      ? msg("autoMaintainActive")
+      : msg("manualReconnectOnly");
+    return;
+  }
+
+  if (isExpired) {
+    indicator.classList.add("expired");
+    indicator.textContent = "●";
+    btn.classList.add("reconnect");
+    btn.textContent = msg("reconnect");
+    btn.disabled = false;
+    meta.textContent = connection?.autoMaintainEnabled
+      ? msg("autoMaintainInterrupted")
+      : msg("manualReconnectRequired");
+    return;
+  }
+
+  indicator.textContent = "○";
+  btn.textContent = msg("connect");
+  btn.disabled = false;
+  meta.textContent = getDefaultMeta(platform);
+}
+
+function renderPlatformStates() {
+  for (const platform of Object.keys(PLATFORM_CONFIGS)) {
+    setPlatformState(platform, connectionMap.get(platform) ?? null);
+  }
 }
 
 async function fetchHostierSession() {
@@ -137,6 +240,7 @@ async function fetchHostierSession() {
 }
 
 function showLoginGate() {
+  clearStatus();
   ui.userEmail.textContent = msg("loginRequired");
   setButtonsDisabled(true);
   setGuardState({
@@ -152,21 +256,38 @@ function showLoginGate() {
   });
 }
 
-function showConsentGate() {
+function showDisclosure(platform) {
+  const config = PLATFORM_CONFIGS[platform];
+  clearStatus();
   ui.userEmail.textContent = currentSession?.user?.email || msg("loginRequired");
   setButtonsDisabled(true);
   setGuardState({
     eyebrow: msg("consentEyebrow"),
-    title: msg("consentTitle"),
-    body: msg("consentBody"),
-    checkboxLabel: msg("consentCheckbox"),
-    primaryLabel: msg("consentPrimary"),
+    title: msg("connectDisclosureTitle", [config.label]),
+    body: msg("connectDisclosureBody", [config.label]),
+    items: [
+      msg("disclosureReadsAuth", [config.label]),
+      msg("disclosureTransfersToHostier"),
+      msg("disclosureEncryptedStorage"),
+      config.autoMaintainEnabled
+        ? msg("disclosure33m2AutoMaintain")
+        : msg("disclosureManualReconnect"),
+      config.autoMaintainEnabled
+        ? msg("disclosure33m2OpenTab")
+        : msg("disclosureDisconnectDeletes"),
+    ],
+    checkboxLabel: msg("connectDisclosureCheckbox"),
+    primaryLabel: msg("connectDisclosurePrimary"),
     primaryAction: () => {
-      void acceptConsent();
+      void connectPlatform(platform);
     },
     primaryDisabled: true,
-    secondaryLabel: msg("privacyPolicy"),
-    secondaryAction: () => openUrl(PRIVACY_POLICY_URL),
+    secondaryLabel: msg("back"),
+    secondaryAction: async () => {
+      clearGuardState();
+      setButtonsDisabled(false);
+      await loadStatus();
+    },
   });
 
   ui.guardCheckbox.onchange = () => {
@@ -174,68 +295,17 @@ function showConsentGate() {
   };
 }
 
-async function loadStatus() {
-  try {
-    const res = await fetch(`${HOSTIER_URL}/api/platform-connections`, {
-      credentials: "include",
-    });
-    if (!res.ok) {
-      if (res.status === 401) {
-        showLoginGate();
-      }
-      return;
-    }
-    const data = await res.json();
-
-    const connectedPlatforms = new Set(
-      data.connections
-        .filter((c) => c.status === "ACTIVE")
-        .map((c) => c.platform),
-    );
-
-    clearGuardState();
-    setButtonsDisabled(false);
-
-    for (const [platform, config] of Object.entries(PLATFORM_COOKIES)) {
-      setConnected(config, connectedPlatforms.has(platform));
-    }
-  } catch (e) {
-    console.error("[hostier] Failed to load status:", e);
-  }
+async function ensurePlatformPermission(config) {
+  const origins = [config.origin];
+  const alreadyGranted = await chrome.permissions.contains({ origins });
+  if (alreadyGranted) return true;
+  return chrome.permissions.request({ origins });
 }
 
-function setConnected(config, connected) {
-  const indicator = document.getElementById(config.indicatorId);
-  const btn = document.getElementById(config.btnId);
-  btn.classList.remove("loading");
-  indicator.classList.remove("loading");
-
-  if (connected) {
-    indicator.textContent = "●";
-    indicator.classList.add("connected");
-    btn.textContent = msg("connected");
-    btn.classList.add("connected");
-    btn.disabled = true;
-  } else {
-    indicator.textContent = "○";
-    indicator.classList.remove("connected");
-    btn.textContent = msg("connect");
-    btn.classList.remove("connected");
-    btn.disabled = false;
-  }
-}
-
-/**
- * 33m2의 Firebase refresh token을 IndexedDB에서 읽는다.
- * Firebase Auth는 firebaseLocalStorageDb > firebaseLocalStorage에 저장.
- */
-async function getFirebaseRefreshToken() {
+async function getFirebaseRefreshToken(tabId) {
   try {
-    const [tab] = await chrome.tabs.query({ url: "https://web.33m2.co.kr/*" });
-    if (!tab) return null;
-
     const [result] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
+      target: { tabId },
       func: () => {
         return new Promise((resolve) => {
           const req = indexedDB.open("firebaseLocalStorageDb");
@@ -264,9 +334,7 @@ async function getFirebaseRefreshToken() {
                 );
               };
 
-              const token = getAll.result
-                .map(extractRefreshToken)
-                .find(Boolean);
+              const token = getAll.result.map(extractRefreshToken).find(Boolean);
               resolve(token || null);
             };
             getAll.onerror = () => resolve(null);
@@ -283,83 +351,161 @@ async function getFirebaseRefreshToken() {
   }
 }
 
-async function handleMissing33m2RefreshToken(config) {
-  await chrome.tabs.create({ url: config.homeUrl || config.url });
-  alert(
-    "33m2 연결에 필요한 refresh token을 읽지 못했습니다. 로그인된 33m2 탭을 연 상태에서 다시 연결해주세요.",
-  );
+async function readPlatformAuthBundle(platform) {
+  const config = PLATFORM_CONFIGS[platform];
+  const cookie = await chrome.cookies.get({
+    url: config.url,
+    name: config.name,
+  });
+
+  if (!cookie?.value) {
+    return {
+      ok: false,
+      error: msg(
+        platform === "THIRTY_THREE_M2" ? "loginAndReturn33m2" : "loginAndReturn",
+        [config.label],
+      ),
+      openUrl: config.loginUrl,
+    };
+  }
+
+  const tokenExpiresAt = cookie.expirationDate
+    ? new Date(cookie.expirationDate * 1000).toISOString()
+    : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
+
+  if (platform !== "THIRTY_THREE_M2") {
+    return {
+      ok: true,
+      token: cookie.value,
+      tokenExpiresAt,
+      refreshToken: null,
+      firebaseSessionToken: null,
+    };
+  }
+
+  const [tab] = await chrome.tabs.query({ url: "https://web.33m2.co.kr/*" });
+  if (!tab?.id) {
+    return {
+      ok: false,
+      error: msg("missing33m2OpenTab"),
+      openUrl: config.homeUrl || config.url,
+    };
+  }
+
+  const refreshToken = await getFirebaseRefreshToken(tab.id);
+  if (!refreshToken) {
+    return {
+      ok: false,
+      error: msg("missing33m2RefreshToken"),
+      openUrl: config.homeUrl || config.url,
+    };
+  }
+
+  const firebaseSessionCookie = await chrome.cookies.get({
+    url: config.url,
+    name: config.firebaseSessionName,
+  });
+
+  return {
+    ok: true,
+    token: cookie.value,
+    tokenExpiresAt,
+    refreshToken,
+    firebaseSessionToken: firebaseSessionCookie?.value || null,
+  };
+}
+
+async function loadStatus() {
+  try {
+    const res = await fetch(`${HOSTIER_URL}/api/platform-connections`, {
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        showLoginGate();
+      }
+      return;
+    }
+
+    const data = await res.json();
+    connectionMap.clear();
+    for (const connection of data.connections ?? []) {
+      connectionMap.set(connection.platform, connection);
+    }
+
+    clearGuardState();
+    setButtonsDisabled(false);
+    renderPlatformStates();
+  } catch (e) {
+    console.error("[hostier] Failed to load status:", e);
+    showStatus("error", msg("statusLoadFailed"));
+  }
 }
 
 async function connectPlatform(platform) {
-  const config = PLATFORM_COOKIES[platform];
+  const config = PLATFORM_CONFIGS[platform];
+  setPlatformLoading(platform, true);
+  showStatus("info", msg("connectingStatus", [config.label]));
 
   try {
-    const cookie = await chrome.cookies.get({
-      url: config.url,
-      name: config.name,
+    const granted = await ensurePlatformPermission(config);
+    if (!granted) {
+      showStatus("error", msg("permissionDenied", [config.label]));
+      return;
+    }
+
+    const authBundle = await readPlatformAuthBundle(platform);
+    if (!authBundle.ok) {
+      if (authBundle.openUrl) {
+        await chrome.tabs.create({ url: authBundle.openUrl });
+      }
+      clearGuardState();
+      setButtonsDisabled(false);
+      showStatus("error", authBundle.error);
+      renderPlatformStates();
+      return;
+    }
+
+    const response = await fetch(`${HOSTIER_URL}/api/platform-connections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        platform,
+        token: authBundle.token,
+        refreshToken: authBundle.refreshToken,
+        firebaseSessionToken: authBundle.firebaseSessionToken,
+        tokenExpiresAt: authBundle.tokenExpiresAt,
+        autoMaintainEnabled: config.autoMaintainEnabled,
+        consentVersion: CONSENT_VERSION,
+        consentedAt: new Date().toISOString(),
+      }),
     });
 
-    if (cookie && cookie.value) {
-      const tokenExpiresAt = cookie.expirationDate
-        ? new Date(cookie.expirationDate * 1000).toISOString()
-        : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
-
-      // 33m2인 경우 Firebase refresh token도 캡처
-      let refreshToken = null;
-      let firebaseSessionToken = null;
-      if (platform === "THIRTY_THREE_M2") {
-        refreshToken = await getFirebaseRefreshToken();
-        if (!refreshToken) {
-          await handleMissing33m2RefreshToken(config);
-          return;
-        }
-
-        const firebaseSessionCookie = await chrome.cookies.get({
-          url: config.url,
-          name: config.firebaseSessionName,
-        });
-        firebaseSessionToken = firebaseSessionCookie?.value || null;
-      }
-
-      const res = await fetch(`${HOSTIER_URL}/api/platform-connections`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          platform,
-          token: cookie.value,
-          refreshToken,
-          firebaseSessionToken,
-          tokenExpiresAt,
-        }),
-      });
-
-      if (res.status === 401) {
-        showLoginGate();
-        return;
-      }
-
-      if (res.ok) {
-        setConnected(config, true);
-        return;
-      }
-
-      const errorBody = await res.json().catch(() => null);
-      if (
-        platform === "THIRTY_THREE_M2" &&
-        errorBody?.code === "MISSING_33M2_REFRESH_TOKEN"
-      ) {
-        await handleMissing33m2RefreshToken(config);
-        return;
-      }
+    if (response.status === 401) {
+      showLoginGate();
+      return;
     }
-  } catch (e) {
-    console.log("[hostier] Cookie check failed, opening login page:", e);
-  }
 
-  // 연결 대기 플래그 설정 → background의 쿠키 리스너가 감지하면 전송
-  chrome.storage.local.set({ [`pending_${platform}`]: true });
-  chrome.tabs.create({ url: config.loginUrl });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      showStatus(
+        "error",
+        errorBody?.error || msg("connectionFailed", [config.label]),
+      );
+      return;
+    }
+
+    await loadStatus();
+    showStatus("success", msg("connectionComplete", [config.label]));
+  } catch (e) {
+    console.error("[hostier] Platform connection failed:", e);
+    showStatus("error", msg("connectionFailed", [config.label]));
+  } finally {
+    setPlatformLoading(platform, false);
+    renderPlatformStates();
+  }
 }
 
 async function initializePopup() {
@@ -370,44 +516,35 @@ async function initializePopup() {
   }
 
   ui.userEmail.textContent = currentSession.user.email || msg("loginRequired");
-
-  const consentVersion = await getStoredConsentVersion();
-  if (consentVersion !== CONSENT_VERSION) {
-    showConsentGate();
-    return;
-  }
-
   await loadStatus();
 }
 
 document.getElementById("btn-33m2").addEventListener("click", () => {
-  connectPlatform("THIRTY_THREE_M2");
+  showDisclosure("THIRTY_THREE_M2");
 });
 
 document.getElementById("btn-enkorstay").addEventListener("click", () => {
-  connectPlatform("ENKORSTAY");
+  showDisclosure("ENKORSTAY");
 });
 
 document.getElementById("btn-liveanywhere").addEventListener("click", () => {
-  connectPlatform("LIVEANYWHERE");
+  showDisclosure("LIVEANYWHERE");
 });
 
-document.getElementById("openWebsite").addEventListener("click", (e) => {
-  e.preventDefault();
-  chrome.tabs.create({ url: HOSTIER_URL });
+document.getElementById("openWebsite").addEventListener("click", (event) => {
+  event.preventDefault();
+  openUrl(HOSTIER_URL);
 });
 
-// i18n: set initial text from locale
 ui.userEmail.textContent = msg("loginRequired");
 ui.openWebsite.textContent = msg("openWebsite");
 ui.privacyLink.textContent = msg("privacyPolicy");
 ui.privacyLink.href = PRIVACY_POLICY_URL;
-for (const config of Object.values(PLATFORM_COOKIES)) {
-  const btn = document.getElementById(config.btnId);
-  const indicator = document.getElementById(config.indicatorId);
-  btn.classList.add("loading");
-  btn.disabled = true;
-  indicator.classList.add("loading");
+
+for (const platform of Object.keys(PLATFORM_CONFIGS)) {
+  setPlatformLoading(platform, true);
+  const meta = document.getElementById(PLATFORM_CONFIGS[platform].metaId);
+  meta.textContent = getDefaultMeta(platform);
 }
 
 initializePopup();

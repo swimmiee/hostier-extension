@@ -1,6 +1,6 @@
 {
   "extDescription": {
-    "message": "Sync accommodation platform reservations"
+    "message": "Connect selected host platform accounts to Hostier for reservation sync"
   },
   "loginRequired": {
     "message": "Login required"
@@ -13,6 +13,12 @@
   },
   "connected": {
     "message": "Connected"
+  },
+  "connecting": {
+    "message": "Connecting..."
+  },
+  "reconnect": {
+    "message": "Reconnect"
   },
   "openWebsite": {
     "message": "Open website"
@@ -44,11 +50,115 @@
   "consentBody": {
     "message": "Hostier reads the selected platform's login cookies and required authentication data, then sends them to the Hostier server to support reservation sync."
   },
-  "consentCheckbox": {
-    "message": "I agree to send the required cookies and authentication data for platform connection."
+  "connectDisclosureTitle": {
+    "message": "Review this before connecting $platform$.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
   },
-  "consentPrimary": {
-    "message": "Agree and continue"
+  "connectDisclosureBody": {
+    "message": "$platform$ connection only starts when you explicitly request it.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "connectDisclosureCheckbox": {
+    "message": "I have read this and want to continue with the connection."
+  },
+  "connectDisclosurePrimary": {
+    "message": "Continue"
+  },
+  "back": {
+    "message": "Back"
+  },
+  "disclosureReadsAuth": {
+    "message": "Hostier reads the $platform$ login cookie and the authentication data needed for the connection.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "disclosureTransfersToHostier": {
+    "message": "The captured authentication data is sent to the Hostier server to provide reservation sync."
+  },
+  "disclosureEncryptedStorage": {
+    "message": "The transfer uses HTTPS and the data is encrypted at rest on the server."
+  },
+  "disclosure33m2AutoMaintain": {
+    "message": "For 33m2, Hostier tries to keep the connection active on the server after you connect."
+  },
+  "disclosureManualReconnect": {
+    "message": "For this platform in the public build, automatic maintenance is disabled and you may need to reconnect manually."
+  },
+  "disclosure33m2OpenTab": {
+    "message": "33m2 requires an open logged-in tab so the extension can read the required auth material."
+  },
+  "disclosureDisconnectDeletes": {
+    "message": "Disconnecting removes the stored connection state and authentication material."
+  },
+  "autoMaintainAvailable": {
+    "message": "Automatic maintenance available after connect"
+  },
+  "autoMaintainActive": {
+    "message": "Automatic maintenance enabled"
+  },
+  "autoMaintainInterrupted": {
+    "message": "Automatic maintenance stopped and needs reconnect"
+  },
+  "manualReconnectOnly": {
+    "message": "Manual reconnect when expired"
+  },
+  "manualReconnectRequired": {
+    "message": "Connection expired and needs reconnect"
+  },
+  "permissionDenied": {
+    "message": "Hostier cannot continue because $platform$ access was not granted.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "connectingStatus": {
+    "message": "Checking $platform$ connection details.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusLoadFailed": {
+    "message": "Failed to load the connection status. Try again."
+  },
+  "loginAndReturn": {
+    "message": "Sign in to $platform$, then return to the extension and connect again.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "loginAndReturn33m2": {
+    "message": "Sign in to 33m2, keep a logged-in tab open, then return to the extension and connect again."
+  },
+  "missing33m2OpenTab": {
+    "message": "A logged-in 33m2 tab must be open before this connection can continue."
+  },
+  "missing33m2RefreshToken": {
+    "message": "Hostier could not read the 33m2 refresh token. Keep a logged-in 33m2 tab open and try again."
+  },
+  "connectionFailed": {
+    "message": "Failed to connect $platform$. Check the login state and permissions, then try again.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
   },
   "connectionComplete": {
     "message": "$platform$ connected successfully.",

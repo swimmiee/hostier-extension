@@ -1,6 +1,6 @@
 {
   "extDescription": {
-    "message": "숙소 플랫폼 예약 동기화"
+    "message": "선택한 숙소 플랫폼 계정을 Hostier에 연결해 예약을 동기화"
   },
   "loginRequired": {
     "message": "로그인 필요"
@@ -13,6 +13,12 @@
   },
   "connected": {
     "message": "연결됨"
+  },
+  "connecting": {
+    "message": "연결 중..."
+  },
+  "reconnect": {
+    "message": "다시 연결"
   },
   "openWebsite": {
     "message": "웹사이트 열기"
@@ -44,11 +50,115 @@
   "consentBody": {
     "message": "Hostier는 예약 동기화를 위해 선택한 플랫폼의 로그인 쿠키와 필요한 인증 정보를 읽어 Hostier 서버로 전송합니다."
   },
-  "consentCheckbox": {
-    "message": "연결 시 필요한 쿠키 및 인증 정보 전송에 동의합니다."
+  "connectDisclosureTitle": {
+    "message": "$platform$ 연결 전에 아래 내용을 확인해주세요.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
   },
-  "consentPrimary": {
-    "message": "동의하고 계속"
+  "connectDisclosureBody": {
+    "message": "$platform$ 연결은 사용자가 직접 시작할 때만 진행됩니다.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "connectDisclosureCheckbox": {
+    "message": "위 내용을 읽고 이 연결을 진행합니다."
+  },
+  "connectDisclosurePrimary": {
+    "message": "연결 진행"
+  },
+  "back": {
+    "message": "뒤로"
+  },
+  "disclosureReadsAuth": {
+    "message": "Hostier는 $platform$ 로그인 쿠키와 연결 유지에 필요한 인증 정보를 읽습니다.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "disclosureTransfersToHostier": {
+    "message": "수집된 인증 정보는 예약 동기화를 위해 Hostier 서버로 전송됩니다."
+  },
+  "disclosureEncryptedStorage": {
+    "message": "전송 중에는 HTTPS를 사용하고, 서버 저장 시에는 암호화됩니다."
+  },
+  "disclosure33m2AutoMaintain": {
+    "message": "33m2는 연결 후 Hostier 서버가 세션 유지와 갱신을 시도합니다."
+  },
+  "disclosureManualReconnect": {
+    "message": "이 플랫폼은 공개 버전에서 자동 유지가 없고, 만료 시 직접 다시 연결해야 합니다."
+  },
+  "disclosure33m2OpenTab": {
+    "message": "33m2는 로그인된 탭이 열려 있어야 필요한 인증 정보를 읽을 수 있습니다."
+  },
+  "disclosureDisconnectDeletes": {
+    "message": "연결 해제 시 저장된 연결 정보와 인증 정보는 삭제 대상이 됩니다."
+  },
+  "autoMaintainAvailable": {
+    "message": "연결 후 자동 유지 지원"
+  },
+  "autoMaintainActive": {
+    "message": "자동 유지 활성화됨"
+  },
+  "autoMaintainInterrupted": {
+    "message": "자동 유지가 중단되어 다시 연결이 필요합니다."
+  },
+  "manualReconnectOnly": {
+    "message": "만료 시 수동 재연결"
+  },
+  "manualReconnectRequired": {
+    "message": "연결이 만료되어 다시 연결이 필요합니다."
+  },
+  "permissionDenied": {
+    "message": "$platform$ 접근 권한이 없어서 연결을 계속할 수 없습니다.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "connectingStatus": {
+    "message": "$platform$ 연결 정보를 확인하고 있습니다.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusLoadFailed": {
+    "message": "연결 상태를 불러오지 못했습니다. 다시 확인해주세요."
+  },
+  "loginAndReturn": {
+    "message": "$platform$에 로그인한 뒤 확장으로 돌아와 다시 연결해주세요.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
+  "loginAndReturn33m2": {
+    "message": "33m2에 로그인한 뒤, 로그인된 탭을 연 상태에서 확장으로 돌아와 다시 연결해주세요."
+  },
+  "missing33m2OpenTab": {
+    "message": "로그인된 33m2 탭이 열려 있어야 연결할 수 있습니다."
+  },
+  "missing33m2RefreshToken": {
+    "message": "33m2 연결에 필요한 refresh token을 읽지 못했습니다. 로그인된 33m2 탭을 연 상태에서 다시 연결해주세요."
+  },
+  "connectionFailed": {
+    "message": "$platform$ 연결에 실패했습니다. 로그인 상태와 권한을 확인한 뒤 다시 시도해주세요.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
   },
   "connectionComplete": {
     "message": "$platform$ 연결이 완료되었습니다.",
