@@ -29,6 +29,7 @@ function normalizeHostierUrl(rawUrl) {
 
 function buildManifest(hostierUrl) {
   const hostierMatch = `${hostierUrl}/*`;
+  const localhostMatch = "http://localhost:3000/*";
 
   return {
     manifest_version: 3,
@@ -37,7 +38,7 @@ function buildManifest(hostierUrl) {
     default_locale: "ko",
     description: "__MSG_extDescription__",
     permissions: ["cookies", "storage", "scripting"],
-    host_permissions: [hostierMatch],
+    host_permissions: [hostierMatch, localhostMatch],
     optional_host_permissions: [...PLATFORM_HOST_PERMISSIONS],
     icons: {
       "16": "icon16.png",

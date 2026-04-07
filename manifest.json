@@ -10,7 +10,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://hostier.vercel.app/*"
+    "https://hostier.vercel.app/*",
+    "http://localhost:3000/*"
   ],
   "optional_host_permissions": [
     "https://web.33m2.co.kr/*",
