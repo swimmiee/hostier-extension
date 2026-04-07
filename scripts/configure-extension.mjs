@@ -30,6 +30,7 @@ function normalizeHostierUrl(rawUrl) {
 function buildManifest(hostierUrl) {
   const hostierMatch = `${hostierUrl}/*`;
   const localhostMatch = "http://localhost:5173/*";
+  const installDetectionMatches = [hostierMatch, localhostMatch];
 
   return {
     manifest_version: 3,
@@ -37,7 +38,7 @@ function buildManifest(hostierUrl) {
     version: "2.0.0",
     default_locale: "ko",
     description: "__MSG_extDescription__",
-    permissions: ["cookies", "storage", "scripting"],
+    permissions: ["cookies", "storage", "scripting", "tabs"],
     host_permissions: [hostierMatch, localhostMatch],
     optional_host_permissions: [...PLATFORM_HOST_PERMISSIONS],
     icons: {
@@ -53,6 +54,16 @@ function buildManifest(hostierUrl) {
         "128": "icon128.png",
       },
     },
+    background: {
+      service_worker: "background.js",
+    },
+    content_scripts: [
+      {
+        matches: installDetectionMatches,
+        js: ["install-detector.js"],
+        run_at: "document_idle",
+      },
+    ],
   };
 }
 

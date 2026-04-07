@@ -7,7 +7,8 @@
   "permissions": [
     "cookies",
     "storage",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "host_permissions": [
     "https://hostier.ai/*",
@@ -30,5 +31,20 @@
       "48": "icon48.png",
       "128": "icon128.png"
     }
-  }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://hostier.ai/*",
+        "http://localhost:5173/*"
+      ],
+      "js": [
+        "install-detector.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }
