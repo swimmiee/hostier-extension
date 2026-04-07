@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "extension:configure:dev": "node ./scripts/configure-extension.mjs dev",
-    "extension:configure:prod": "node ./scripts/configure-extension.mjs prod"
+    "extension:configure:prod": "node ./scripts/configure-extension.mjs prod",
+    "extension:package:dev": "node ./scripts/package-extension.mjs dev",
+    "extension:package:prod": "node ./scripts/package-extension.mjs prod"
   },
   "devDependencies": {
     "@prisma/client": "^7.5.0",

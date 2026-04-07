@@ -9,8 +9,12 @@ function getExtensionConfig() {
 const HOSTIER_URL = getExtensionConfig().hostierUrl.replace(/\/$/, "");
 const HOSTIER_LOGIN_URL = `${HOSTIER_URL}/login`;
 const PRIVACY_POLICY_URL = `${HOSTIER_URL}/privacy`;
-const CONSENT_VERSION = "2026-04-06";
+const CONSENT_VERSION = "extension-consent-v1";
 const msg = chrome.i18n.getMessage.bind(chrome.i18n);
+const HOSTIER_SESSION_COOKIE_NAMES = [
+  "__Secure-authjs.session-token",
+  "authjs.session-token",
+];
 
 const PLATFORM_CONFIGS = {
   THIRTY_THREE_M2: {
@@ -224,19 +228,31 @@ function renderPlatformStates() {
   }
 }
 
-async function fetchHostierSession() {
-  try {
-    const res = await fetch(`${HOSTIER_URL}/api/auth/session`, {
-      credentials: "include",
+async function getHostierSessionToken() {
+  for (const name of HOSTIER_SESSION_COOKIE_NAMES) {
+    const cookie = await chrome.cookies.get({
+      url: HOSTIER_URL,
+      name,
     });
-    if (!res.ok) return null;
-    const session = await res.json();
-    if (!session?.user) return null;
-    return session;
-  } catch (e) {
-    console.error("[hostier] Failed to load Hostier session:", e);
-    return null;
+    if (cookie?.value) {
+      return cookie.value;
+    }
   }
+
+  return null;
+}
+
+async function fetchHostier(path, options = {}) {
+  const sessionToken = await getHostierSessionToken();
+  const headers = new Headers(options.headers || {});
+  if (sessionToken) {
+    headers.set("x-hostier-session-token", sessionToken);
+  }
+
+  return fetch(`${HOSTIER_URL}${path}`, {
+    ...options,
+    headers,
+  });
 }
 
 function showLoginGate() {
@@ -295,11 +311,15 @@ function showDisclosure(platform) {
   };
 }
 
-async function ensurePlatformPermission(config) {
+function requestPlatformPermission(config) {
   const origins = [config.origin];
-  const alreadyGranted = await chrome.permissions.contains({ origins });
-  if (alreadyGranted) return true;
-  return chrome.permissions.request({ origins });
+
+  return new Promise((resolve) => {
+    // Keep the optional permission prompt in the direct click path.
+    chrome.permissions.request({ origins }, (granted) => {
+      resolve(Boolean(granted));
+    });
+  });
 }
 
 async function getFirebaseRefreshToken(tabId) {
@@ -417,9 +437,7 @@ async function readPlatformAuthBundle(platform) {
 
 async function loadStatus() {
   try {
-    const res = await fetch(`${HOSTIER_URL}/api/platform-connections`, {
-      credentials: "include",
-    });
+    const res = await fetchHostier("/api/platform-connections");
 
     if (!res.ok) {
       if (res.status === 401) {
@@ -429,6 +447,12 @@ async function loadStatus() {
     }
 
     const data = await res.json();
+    currentSession = {
+      user: {
+        email: data.userEmail || null,
+      },
+    };
+    ui.userEmail.textContent = data.userEmail || msg("pleaseLogin");
     connectionMap.clear();
     for (const connection of data.connections ?? []) {
       connectionMap.set(connection.platform, connection);
@@ -449,7 +473,7 @@ async function connectPlatform(platform) {
   showStatus("info", msg("connectingStatus", [config.label]));
 
   try {
-    const granted = await ensurePlatformPermission(config);
+    const granted = await requestPlatformPermission(config);
     if (!granted) {
       showStatus("error", msg("permissionDenied", [config.label]));
       return;
@@ -467,10 +491,9 @@ async function connectPlatform(platform) {
       return;
     }
 
-    const response = await fetch(`${HOSTIER_URL}/api/platform-connections`, {
+    const response = await fetchHostier("/api/platform-connections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({
         platform,
         token: authBundle.token,
@@ -509,13 +532,14 @@ async function connectPlatform(platform) {
 }
 
 async function initializePopup() {
-  currentSession = await fetchHostierSession();
-  if (!currentSession) {
+  const sessionToken = await getHostierSessionToken();
+  if (!sessionToken) {
     showLoginGate();
     return;
   }
 
-  ui.userEmail.textContent = currentSession.user.email || msg("loginRequired");
+  currentSession = { user: { email: null } };
+  ui.userEmail.textContent = msg("pleaseLogin");
   await loadStatus();
 }
 
