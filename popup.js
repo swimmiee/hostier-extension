@@ -10,10 +10,7 @@ const HOSTIER_URL = getExtensionConfig().hostierUrl.replace(/\/$/, "");
 const HOSTIER_LOGIN_URL = `${HOSTIER_URL}/login`;
 const PRIVACY_POLICY_URL = `${HOSTIER_URL}/privacy`;
 const CONSENT_VERSION = "extension-consent-v1";
-const HOSTIER_SESSION_COOKIE_NAMES = [
-  "__Secure-authjs.session-token",
-  "authjs.session-token",
-];
+const EXTENSION_TOKEN_STORAGE_KEY = "hostierExtensionToken";
 let localeMessages = null;
 
 function interpolateMessage(template, placeholders = {}, substitutions = []) {
@@ -277,31 +274,97 @@ function renderPlatformStates() {
   }
 }
 
-async function getHostierSessionToken() {
-  for (const name of HOSTIER_SESSION_COOKIE_NAMES) {
-    const cookie = await chrome.cookies.get({
-      url: HOSTIER_URL,
-      name,
-    });
-    if (cookie?.value) {
-      return cookie.value;
+async function getStoredExtensionToken() {
+  const stored = await chrome.storage.local.get(EXTENSION_TOKEN_STORAGE_KEY);
+  const tokenState = stored?.[EXTENSION_TOKEN_STORAGE_KEY];
+  if (!tokenState?.token || !tokenState?.expiresAt) {
+    return null;
+  }
+
+  if (Date.now() >= tokenState.expiresAt) {
+    await chrome.storage.local.remove(EXTENSION_TOKEN_STORAGE_KEY);
+    return null;
+  }
+
+  return tokenState.token;
+}
+
+async function storeExtensionToken(token, expiresInSeconds) {
+  await chrome.storage.local.set({
+    [EXTENSION_TOKEN_STORAGE_KEY]: {
+      token,
+      expiresAt: Date.now() + Math.max(0, expiresInSeconds - 30) * 1000,
+    },
+  });
+}
+
+async function clearExtensionToken() {
+  await chrome.storage.local.remove(EXTENSION_TOKEN_STORAGE_KEY);
+}
+
+async function exchangeExtensionToken() {
+  const response = await fetch(`${HOSTIER_URL}/api/auth/extension/exchange`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    await clearExtensionToken();
+    return null;
+  }
+
+  const body = await response.json().catch(() => null);
+  if (!body?.token || typeof body.expiresInSeconds !== "number") {
+    await clearExtensionToken();
+    return null;
+  }
+
+  await storeExtensionToken(body.token, body.expiresInSeconds);
+  return body.token;
+}
+
+async function getExtensionToken({ forceRefresh = false } = {}) {
+  if (!forceRefresh) {
+    const cached = await getStoredExtensionToken();
+    if (cached) {
+      return cached;
     }
   }
 
-  return null;
+  return exchangeExtensionToken();
 }
 
 async function fetchHostier(path, options = {}) {
-  const sessionToken = await getHostierSessionToken();
+  let token = await getExtensionToken();
   const headers = new Headers(options.headers || {});
-  if (sessionToken) {
-    headers.set("x-hostier-session-token", sessionToken);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
-  return fetch(`${HOSTIER_URL}${path}`, {
+  let response = await fetch(`${HOSTIER_URL}${path}`, {
     ...options,
     headers,
+    credentials: "include",
   });
+
+  if (response.status !== 401) {
+    return response;
+  }
+
+  await clearExtensionToken();
+  token = await getExtensionToken({ forceRefresh: true });
+  if (!token) {
+    return response;
+  }
+
+  headers.set("Authorization", `Bearer ${token}`);
+  response = await fetch(`${HOSTIER_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
+
+  return response;
 }
 
 function showLoginGate() {
@@ -581,8 +644,8 @@ async function connectPlatform(platform) {
 }
 
 async function initializePopup() {
-  const sessionToken = await getHostierSessionToken();
-  if (!sessionToken) {
+  const token = await getExtensionToken();
+  if (!token) {
     showLoginGate();
     return;
   }

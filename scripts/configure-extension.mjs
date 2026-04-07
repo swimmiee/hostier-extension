@@ -3,10 +3,10 @@ import { resolve } from "node:path";
 
 const TARGETS = {
   dev: {
-    defaultHostierUrl: "http://localhost:3000",
+    defaultHostierUrl: "http://localhost:5173",
   },
   prod: {
-    defaultHostierUrl: "https://hostier.vercel.app",
+    defaultHostierUrl: "https://hostier.ai",
   },
 };
 
@@ -21,7 +21,7 @@ function normalizeHostierUrl(rawUrl) {
   const parsed = new URL(trimmed);
 
   if (parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new Error("HOSTIER_WEB_URL must be an origin, for example https://hostier.vercel.app");
+    throw new Error("HOSTIER_WEB_URL must be an origin, for example https://hostier.ai");
   }
 
   return parsed.origin;
@@ -29,7 +29,7 @@ function normalizeHostierUrl(rawUrl) {
 
 function buildManifest(hostierUrl) {
   const hostierMatch = `${hostierUrl}/*`;
-  const localhostMatch = "http://localhost:3000/*";
+  const localhostMatch = "http://localhost:5173/*";
 
   return {
     manifest_version: 3,

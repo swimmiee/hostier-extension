@@ -11,6 +11,8 @@ terraform.tfvars
 .omx/
 server/.env
 server/dist/
+server/prisma/generated/
+server/prisma/node_modules
 ai/.env
 ai/dist/
 .gstack/
