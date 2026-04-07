@@ -10,11 +10,60 @@ const HOSTIER_URL = getExtensionConfig().hostierUrl.replace(/\/$/, "");
 const HOSTIER_LOGIN_URL = `${HOSTIER_URL}/login`;
 const PRIVACY_POLICY_URL = `${HOSTIER_URL}/privacy`;
 const CONSENT_VERSION = "extension-consent-v1";
-const msg = chrome.i18n.getMessage.bind(chrome.i18n);
 const HOSTIER_SESSION_COOKIE_NAMES = [
   "__Secure-authjs.session-token",
   "authjs.session-token",
 ];
+let localeMessages = null;
+
+function interpolateMessage(template, placeholders = {}, substitutions = []) {
+  let rendered = template;
+
+  substitutions.forEach((value, index) => {
+    rendered = rendered.replaceAll(`$${index + 1}`, String(value));
+  });
+
+  for (const [name, placeholder] of Object.entries(placeholders)) {
+    const substitutionIndex = Number.parseInt(
+      String(placeholder.content ?? "").replace("$", ""),
+      10,
+    );
+    const value =
+      Number.isInteger(substitutionIndex) && substitutionIndex > 0
+        ? substitutions[substitutionIndex - 1]
+        : "";
+    rendered = rendered.replaceAll(`$${name}$`, String(value ?? ""));
+  }
+
+  return rendered;
+}
+
+async function loadLocaleMessages() {
+  if (localeMessages) {
+    return localeMessages;
+  }
+
+  const response = await fetch(chrome.runtime.getURL("_locales/ko/messages.json"));
+  if (!response.ok) {
+    throw new Error(`Failed to load ko locale messages: ${response.status}`);
+  }
+
+  localeMessages = await response.json();
+  return localeMessages;
+}
+
+function msg(key, substitutions = []) {
+  const entry = localeMessages?.[key];
+  if (entry?.message) {
+    return interpolateMessage(
+      entry.message,
+      entry.placeholders ?? {},
+      Array.isArray(substitutions) ? substitutions : [substitutions],
+    );
+  }
+
+  return chrome.i18n.getMessage(key, substitutions) || key;
+}
 
 const PLATFORM_CONFIGS = {
   THIRTY_THREE_M2: {
@@ -560,15 +609,24 @@ document.getElementById("openWebsite").addEventListener("click", (event) => {
   openUrl(HOSTIER_URL);
 });
 
-ui.userEmail.textContent = msg("loginRequired");
-ui.openWebsite.textContent = msg("openWebsite");
-ui.privacyLink.textContent = msg("privacyPolicy");
-ui.privacyLink.href = PRIVACY_POLICY_URL;
+async function bootstrapPopup() {
+  await loadLocaleMessages();
 
-for (const platform of Object.keys(PLATFORM_CONFIGS)) {
-  setPlatformLoading(platform, true);
-  const meta = document.getElementById(PLATFORM_CONFIGS[platform].metaId);
-  meta.textContent = getDefaultMeta(platform);
+  ui.userEmail.textContent = msg("loginRequired");
+  ui.openWebsite.textContent = msg("openWebsite");
+  ui.privacyLink.textContent = msg("privacyPolicy");
+  ui.privacyLink.href = PRIVACY_POLICY_URL;
+
+  for (const platform of Object.keys(PLATFORM_CONFIGS)) {
+    setPlatformLoading(platform, true);
+    const meta = document.getElementById(PLATFORM_CONFIGS[platform].metaId);
+    meta.textContent = getDefaultMeta(platform);
+  }
+
+  await initializePopup();
 }
 
-initializePopup();
+bootstrapPopup().catch((error) => {
+  console.error("[hostier] Failed to bootstrap popup:", error);
+  showStatus("error", "확장 프로그램을 초기화하지 못했습니다.");
+});
