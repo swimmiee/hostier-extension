@@ -186,7 +186,6 @@ const ui = {
   openWebsite: document.getElementById("openWebsite"),
   privacyLink: document.getElementById("privacyLink"),
   guard: document.getElementById("guard"),
-  guardEyebrow: document.getElementById("guardEyebrow"),
   guardTitle: document.getElementById("guardTitle"),
   guardBody: document.getElementById("guardBody"),
   guardList: document.getElementById("guardList"),
@@ -196,10 +195,11 @@ const ui = {
   guardPrimary: document.getElementById("guardPrimary"),
   guardSecondary: document.getElementById("guardSecondary"),
   listView: document.getElementById("listView"),
+  listTitle: document.getElementById("listTitle"),
+  listIntro: document.getElementById("listIntro"),
   platformList: document.getElementById("platformList"),
   detailView: document.getElementById("detailView"),
   detailBack: document.getElementById("detailBack"),
-  detailEyebrow: document.getElementById("detailEyebrow"),
   detailTitle: document.getElementById("detailTitle"),
   detailSummary: document.getElementById("detailSummary"),
   accountsList: document.getElementById("accountsList"),
@@ -215,6 +215,12 @@ function openUrl(url) {
   chrome.tabs.create({ url });
 }
 
+function setHeaderState({ email = "", showWebsiteLink = true } = {}) {
+  ui.userEmail.textContent = email;
+  ui.userEmail.hidden = !email;
+  ui.openWebsite.hidden = !showWebsiteLink;
+}
+
 function showStatus(kind, message) {
   ui.status.hidden = false;
   ui.status.className = `status ${kind}`;
@@ -228,7 +234,6 @@ function clearStatus() {
 }
 
 function setGuardState({
-  eyebrow,
   title,
   body,
   items = [],
@@ -241,7 +246,6 @@ function setGuardState({
 }) {
   document.body.classList.add("guard-active");
   ui.guard.hidden = false;
-  ui.guardEyebrow.textContent = eyebrow;
   ui.guardTitle.textContent = title;
   ui.guardBody.textContent = body;
 
@@ -355,6 +359,10 @@ function getListStateClass(platform) {
   return "idle";
 }
 
+function hasExistingConnections(platform) {
+  return getConnections(platform).length > 0;
+}
+
 function setCurrentPlatform(platform) {
   currentPlatform = platform;
   renderViews();
@@ -364,10 +372,18 @@ function renderPlatformList() {
   ui.platformList.textContent = "";
 
   for (const [platform, config] of Object.entries(PLATFORM_CONFIGS)) {
+    const hasConnections = hasExistingConnections(platform);
     const row = document.createElement("button");
     row.type = "button";
     row.className = "platform-row";
-    row.onclick = () => setCurrentPlatform(platform);
+    row.onclick = () => {
+      if (hasConnections) {
+        setCurrentPlatform(platform);
+        return;
+      }
+
+      showDisclosure(platform, { showDetailView: false });
+    };
 
     const state = document.createElement("span");
     state.className = `state-dot ${getListStateClass(platform)}`;
@@ -390,7 +406,7 @@ function renderPlatformList() {
 
     const action = document.createElement("span");
     action.className = "platform-action";
-    action.textContent = getConnections(platform).length > 0 ? "관리" : msg("connect");
+    action.textContent = hasConnections ? "관리" : msg("connect");
     row.append(action);
 
     ui.platformList.append(row);
@@ -408,7 +424,6 @@ function renderDetailView() {
   const connections = getConnections(currentPlatform);
   ui.listView.hidden = true;
   ui.detailView.hidden = false;
-  ui.detailEyebrow.textContent = connections.length > 0 ? "계정 관리" : "새 계정 연결";
   ui.detailTitle.textContent = config.label;
   ui.detailSummary.textContent =
     connections.length > 1
@@ -420,12 +435,9 @@ function renderDetailView() {
     connections.length > 0 ? "다른 계정 추가" : msg("connect");
 
   ui.accountsList.textContent = "";
+  ui.accountsList.hidden = connections.length === 0;
 
   if (connections.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "empty-state";
-    empty.textContent = "대부분은 계정 하나만 연결하면 충분합니다. 추가 계정이 필요할 때만 더 연결하세요.";
-    ui.accountsList.append(empty);
     return;
   }
 
@@ -471,7 +483,10 @@ function renderDetailView() {
       reconnectButton.className = "text-action primary";
       reconnectButton.textContent = msg("reconnect");
       reconnectButton.onclick = () => {
-        showDisclosure(currentPlatform, { connectionId: connection.id });
+        void connectPlatform(currentPlatform, {
+          connectionId: connection.id,
+          showDetailView: true,
+        });
       };
       actions.append(reconnectButton);
     }
@@ -658,9 +673,11 @@ async function clearConnectionFlowState() {
 
 function showLoginGate() {
   clearStatus();
-  ui.userEmail.textContent = msg("loginRequired");
+  setHeaderState({
+    email: "",
+    showWebsiteLink: false,
+  });
   setGuardState({
-    eyebrow: msg("loginGateEyebrow"),
     title: msg("loginGateTitle"),
     body: msg("loginGateBody"),
     primaryLabel: msg("loginGatePrimary"),
@@ -675,9 +692,11 @@ function showLoginGate() {
 function showDisclosure(platform, options = {}) {
   const config = PLATFORM_CONFIGS[platform];
   clearStatus();
-  ui.userEmail.textContent = currentSession?.user?.email || msg("loginRequired");
+  setHeaderState({
+    email: currentSession?.user?.email || "",
+    showWebsiteLink: false,
+  });
   setGuardState({
-    eyebrow: msg("consentEyebrow"),
     title: msg("connectDisclosureTitle", [config.label]),
     body: msg("connectDisclosureBody", [config.label]),
     items: [
@@ -891,11 +910,19 @@ async function disconnectConnection(platform, connection) {
 async function connectPlatform(platform, options = {}) {
   const config = PLATFORM_CONFIGS[platform];
   clearGuardState();
-  setCurrentPlatform(platform);
+  setHeaderState({
+    email: currentSession?.user?.email || "",
+    showWebsiteLink: true,
+  });
+  const showDetailView = options.showDetailView !== false;
+  if (showDetailView) {
+    setCurrentPlatform(platform);
+  }
 
   const baseFlow = {
     platform,
     connectionId: options.connectionId ?? null,
+    showDetailView,
   };
 
   try {
@@ -1008,7 +1035,9 @@ async function resumeConnectionFlowIfNeeded() {
     return;
   }
 
-  setCurrentPlatform(flow.platform);
+  if (flow.showDetailView !== false) {
+    setCurrentPlatform(flow.platform);
+  }
 
   if (flow.step === "success") {
     showStatus("success", flow.message || "연결이 완료되었습니다.");
@@ -1025,6 +1054,7 @@ async function resumeConnectionFlowIfNeeded() {
   try {
     await connectPlatform(flow.platform, {
       connectionId: flow.connectionId || undefined,
+      showDetailView: flow.showDetailView !== false,
     });
   } finally {
     resumeInFlight = false;
@@ -1048,7 +1078,10 @@ async function loadStatus() {
         email: data.userEmail || null,
       },
     };
-    ui.userEmail.textContent = data.userEmail || msg("pleaseLogin");
+    setHeaderState({
+      email: data.userEmail || "",
+      showWebsiteLink: true,
+    });
 
     connectionsByPlatform.clear();
     for (const platform of Object.keys(PLATFORM_CONFIGS)) {
@@ -1077,7 +1110,10 @@ async function initializePopup() {
   }
 
   currentSession = { user: { email: null } };
-  ui.userEmail.textContent = msg("pleaseLogin");
+  setHeaderState({
+    email: "",
+    showWebsiteLink: true,
+  });
   await loadStatus();
   await resumeConnectionFlowIfNeeded();
 }
@@ -1089,7 +1125,7 @@ ui.detailBack.addEventListener("click", () => {
 
 ui.detailAddAccount.addEventListener("click", () => {
   if (!currentPlatform) return;
-  showDisclosure(currentPlatform);
+  void connectPlatform(currentPlatform, { showDetailView: true });
 });
 
 ui.openWebsite.addEventListener("click", (event) => {
@@ -1101,10 +1137,15 @@ async function bootstrapPopup() {
   await loadLocaleMessages();
   await resolveHostierUrl();
 
-  ui.userEmail.textContent = msg("loginRequired");
+  setHeaderState({
+    email: "",
+    showWebsiteLink: true,
+  });
   ui.openWebsite.textContent = msg("openWebsite");
   ui.privacyLink.textContent = msg("privacyPolicy");
   ui.privacyLink.href = getPrivacyPolicyUrl();
+  ui.listTitle.textContent = msg("platformListTitle");
+  ui.listIntro.textContent = msg("platformListIntro");
 
   renderViews();
   await initializePopup();

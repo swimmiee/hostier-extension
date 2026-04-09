@@ -17,7 +17,6 @@
     <div class="status" id="status" hidden></div>
 
     <section class="guard" id="guard" hidden>
-      <p class="guard-eyebrow" id="guardEyebrow"></p>
       <h1 class="guard-title" id="guardTitle"></h1>
       <p class="guard-body" id="guardBody"></p>
       <ul class="guard-list" id="guardList" hidden></ul>
@@ -28,8 +27,8 @@
       </label>
 
       <div class="guard-actions">
-        <button class="guard-btn primary" id="guardPrimary"></button>
         <button class="guard-btn secondary" id="guardSecondary" hidden></button>
+        <button class="guard-btn primary" id="guardPrimary"></button>
       </div>
 
       <a class="guard-link" id="privacyLink" href="#" target="_blank" rel="noreferrer"></a>
@@ -37,8 +36,8 @@
 
     <section class="view" id="listView">
       <div class="section-head">
-        <p class="section-eyebrow">Account Setup</p>
-        <h1 class="section-title">연결할 플랫폼을 고르세요</h1>
+        <h1 class="sr-only" id="listTitle"></h1>
+        <p class="section-note" id="listIntro"></p>
       </div>
       <div class="platform-list" id="platformList"></div>
     </section>
@@ -46,7 +45,6 @@
     <section class="view detail-view" id="detailView" hidden>
       <button class="back-btn" id="detailBack" type="button">← 뒤로</button>
       <div class="section-head">
-        <p class="section-eyebrow" id="detailEyebrow"></p>
         <h1 class="section-title" id="detailTitle"></h1>
         <p class="section-subtitle" id="detailSummary"></p>
       </div>
