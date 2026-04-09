@@ -11,6 +11,8 @@ const configureScriptPath = resolve(scriptDir, "configure-extension.mjs");
 
 const IGNORED_SUFFIXES = new Set([
   "dev-reload.json",
+  "manifest.json",
+  "config.js",
   ".DS_Store",
 ]);
 

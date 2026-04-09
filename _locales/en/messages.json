@@ -29,6 +29,12 @@
   "refreshStatus": {
     "message": "Refresh"
   },
+  "loadingConnections": {
+    "message": "Loading connection status."
+  },
+  "loadingShort": {
+    "message": "Loading"
+  },
   "platformListTitle": {
     "message": "Platform connection"
   },
@@ -70,7 +76,7 @@
     "message": "I have read this and want to continue with the connection."
   },
   "connectDisclosurePrimary": {
-    "message": "Continue"
+    "message": "Agree to connect"
   },
   "back": {
     "message": "Back"

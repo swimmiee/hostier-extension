@@ -153,6 +153,10 @@ body {
   text-align: left;
 }
 
+.platform-row:disabled {
+  cursor: default;
+}
+
 .platform-row:hover,
 .platform-row:focus-visible {
   color: #111827;
@@ -167,6 +171,10 @@ body {
 
 .state-dot.connected {
   background: #2f6f43;
+}
+
+.state-dot.loading {
+  background: #9ca3af;
 }
 
 .state-dot.expired {

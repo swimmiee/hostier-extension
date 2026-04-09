@@ -209,10 +209,19 @@ const ui = {
 let currentSession = null;
 let currentPlatform = null;
 let resumeInFlight = false;
+let statusLoadState = "idle";
 const connectionsByPlatform = new Map();
 
 function openUrl(url) {
   chrome.tabs.create({ url });
+}
+
+async function requestBackgroundConnectionContinuation() {
+  try {
+    await chrome.runtime.sendMessage({ type: "HOSTIER_CONTINUE_CONNECTION_FLOW" });
+  } catch (error) {
+    console.warn("[hostier] Failed to request background connection continuation:", error);
+  }
 }
 
 function setHeaderState({ email = "", showWebsiteLink = true } = {}) {
@@ -293,6 +302,10 @@ function getConnections(platform) {
   return connectionsByPlatform.get(platform) ?? [];
 }
 
+function isStatusLoading() {
+  return statusLoadState === "loading";
+}
+
 function isReconnectRequired(connection) {
   return (
     connection.status === "EXPIRED"
@@ -324,6 +337,10 @@ function getConnectionMeta(connection) {
 }
 
 function getListSummary(platform) {
+  if (isStatusLoading()) {
+    return msg("loadingConnections");
+  }
+
   const connections = getConnections(platform);
   if (connections.length === 0) {
     return "연결된 계정이 없습니다.";
@@ -349,6 +366,10 @@ function getListSummary(platform) {
 }
 
 function getListStateClass(platform) {
+  if (isStatusLoading()) {
+    return "loading";
+  }
+
   const connections = getConnections(platform);
   if (connections.some((connection) => connection.status === "ACTIVE")) {
     return "connected";
@@ -376,6 +397,7 @@ function renderPlatformList() {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "platform-row";
+    row.disabled = isStatusLoading();
     row.onclick = () => {
       if (hasConnections) {
         setCurrentPlatform(platform);
@@ -406,7 +428,11 @@ function renderPlatformList() {
 
     const action = document.createElement("span");
     action.className = "platform-action";
-    action.textContent = hasConnections ? "관리" : msg("connect");
+    action.textContent = isStatusLoading()
+      ? msg("loadingShort")
+      : hasConnections
+        ? "관리"
+        : msg("connect");
     row.append(action);
 
     ui.platformList.append(row);
@@ -425,12 +451,8 @@ function renderDetailView() {
   ui.listView.hidden = true;
   ui.detailView.hidden = false;
   ui.detailTitle.textContent = config.label;
-  ui.detailSummary.textContent =
-    connections.length > 1
-      ? `연결된 계정 ${connections.length}개`
-      : connections.length === 1
-        ? connections[0].displayLabel
-        : "아직 연결된 계정이 없습니다.";
+  ui.detailSummary.hidden = true;
+  ui.detailSummary.textContent = "";
   ui.detailAddAccount.textContent =
     connections.length > 0 ? "다른 계정 추가" : msg("connect");
 
@@ -672,6 +694,7 @@ async function clearConnectionFlowState() {
 }
 
 function showLoginGate() {
+  statusLoadState = "idle";
   clearStatus();
   setHeaderState({
     email: "",
@@ -926,18 +949,31 @@ async function connectPlatform(platform, options = {}) {
   };
 
   try {
-    await setConnectionFlowState({
-      ...baseFlow,
-      step: "permission_requested",
-      message: `${config.label} 권한을 확인하고 있습니다.`,
-    });
-    showStatus("info", `${config.label} 권한을 확인하고 있습니다.`);
+    const alreadyGranted = await hasPlatformPermission(config);
+    if (!alreadyGranted) {
+      await setConnectionFlowState({
+        ...baseFlow,
+        step: "permission_requested",
+        message: `${config.label} 권한을 확인하고 있습니다.`,
+      });
+      showStatus("info", `${config.label} 권한을 확인하고 있습니다.`);
 
-    const granted = await ensurePlatformPermission(config);
-    if (!granted) {
-      const message = msg("permissionDenied", [config.label]);
-      await setConnectionFlowState({ ...baseFlow, step: "error", message });
-      showStatus("error", message);
+      const granted = await ensurePlatformPermission(config);
+      if (!granted) {
+        const message = msg("permissionDenied", [config.label]);
+        await setConnectionFlowState({ ...baseFlow, step: "error", message });
+        showStatus("error", message);
+        return;
+      }
+
+      const message = msg("connectingStatus", [config.label]);
+      await setConnectionFlowState({
+        ...baseFlow,
+        step: "permission_granted",
+        message,
+      });
+      showStatus("info", message);
+      await requestBackgroundConnectionContinuation();
       return;
     }
 
@@ -1050,6 +1086,17 @@ async function resumeConnectionFlowIfNeeded() {
     return;
   }
 
+  if (
+    flow.step === "permission_requested"
+    || flow.step === "permission_granted"
+    || flow.step === "background_resuming"
+    || flow.step === "saving_connection"
+  ) {
+    showStatus("info", flow.message || "연결을 진행하고 있습니다.");
+    await requestBackgroundConnectionContinuation();
+    return;
+  }
+
   resumeInFlight = true;
   try {
     await connectPlatform(flow.platform, {
@@ -1063,12 +1110,17 @@ async function resumeConnectionFlowIfNeeded() {
 
 async function loadStatus() {
   try {
+    statusLoadState = "loading";
+    renderViews();
     const res = await fetchHostier("/api/platform-connections");
 
     if (!res.ok) {
       if (res.status === 401) {
+        statusLoadState = "idle";
         showLoginGate();
+        return;
       }
+      statusLoadState = "error";
       return;
     }
 
@@ -1094,15 +1146,18 @@ async function loadStatus() {
       connectionsByPlatform.set(connection.platform, list);
     }
 
+    statusLoadState = "ready";
     clearGuardState();
     renderViews();
   } catch (e) {
+    statusLoadState = "error";
     console.error("[hostier] Failed to load status:", e);
     showStatus("error", msg("statusLoadFailed"));
   }
 }
 
 async function initializePopup() {
+  statusLoadState = "loading";
   const token = await getExtensionToken();
   if (!token) {
     showLoginGate();
@@ -1147,6 +1202,7 @@ async function bootstrapPopup() {
   ui.listTitle.textContent = msg("platformListTitle");
   ui.listIntro.textContent = msg("platformListIntro");
 
+  statusLoadState = "loading";
   renderViews();
   await initializePopup();
 }
