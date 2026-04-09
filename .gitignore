@@ -1,5 +1,6 @@
 node_modules/
 browser-data/
+.DS_Store
 .env.local
 .superpowers/
 .omc/
@@ -16,4 +17,7 @@ server/prisma/node_modules
 ai/.env
 ai/dist/
 .gstack/
+.playwright-mcp/
+infra/lambda/
+web/web/
 extension/dev-reload.json
