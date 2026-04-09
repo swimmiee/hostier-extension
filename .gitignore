@@ -16,3 +16,4 @@ server/prisma/node_modules
 ai/.env
 ai/dist/
 .gstack/
+extension/dev-reload.json

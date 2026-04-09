@@ -6,10 +6,13 @@
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <img class="logo" src="logo-wordmark.svg" alt="Hostier 로고">
-      <p class="email" id="userEmail"></p>
-    </div>
+    <header class="header">
+      <div>
+        <img class="logo" src="logo-wordmark.svg" alt="Hostier 로고">
+        <p class="email" id="userEmail"></p>
+      </div>
+      <a class="header-link" href="#" id="openWebsite"></a>
+    </header>
 
     <div class="status" id="status" hidden></div>
 
@@ -32,36 +35,25 @@
       <a class="guard-link" id="privacyLink" href="#" target="_blank" rel="noreferrer"></a>
     </section>
 
-    <div class="platforms">
-      <div class="platform" id="platform-33m2">
-        <span class="indicator" id="indicator-33m2">○</span>
-        <div class="platform-info">
-          <span class="name">33m2</span>
-          <span class="meta" id="meta-33m2"></span>
-        </div>
-        <button class="connect-btn" id="btn-33m2"></button>
+    <section class="view" id="listView">
+      <div class="section-head">
+        <p class="section-eyebrow">Account Setup</p>
+        <h1 class="section-title">연결할 플랫폼을 고르세요</h1>
       </div>
-      <div class="platform" id="platform-enkorstay">
-        <span class="indicator" id="indicator-enkorstay">○</span>
-        <div class="platform-info">
-          <span class="name">EnkorStay</span>
-          <span class="meta" id="meta-enkorstay"></span>
-        </div>
-        <button class="connect-btn" id="btn-enkorstay"></button>
-      </div>
-      <div class="platform" id="platform-liveanywhere">
-        <span class="indicator" id="indicator-liveanywhere">○</span>
-        <div class="platform-info">
-          <span class="name">LiveAnywhere</span>
-          <span class="meta" id="meta-liveanywhere"></span>
-        </div>
-        <button class="connect-btn" id="btn-liveanywhere"></button>
-      </div>
-    </div>
+      <div class="platform-list" id="platformList"></div>
+    </section>
 
-    <div class="footer">
-      <a href="#" id="openWebsite"></a>
-    </div>
+    <section class="view detail-view" id="detailView" hidden>
+      <button class="back-btn" id="detailBack" type="button">← 뒤로</button>
+      <div class="section-head">
+        <p class="section-eyebrow" id="detailEyebrow"></p>
+        <h1 class="section-title" id="detailTitle"></h1>
+        <p class="section-subtitle" id="detailSummary"></p>
+      </div>
+      <div class="accounts-list" id="accountsList"></div>
+      <button class="primary-action" id="detailAddAccount" type="button"></button>
+    </section>
+
   </div>
 
   <script src="config.js"></script>

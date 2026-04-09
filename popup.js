@@ -6,12 +6,96 @@ function getExtensionConfig() {
   return config;
 }
 
-const HOSTIER_URL = getExtensionConfig().hostierUrl.replace(/\/$/, "");
-const HOSTIER_LOGIN_URL = `${HOSTIER_URL}/login`;
-const PRIVACY_POLICY_URL = `${HOSTIER_URL}/privacy`;
 const CONSENT_VERSION = "extension-consent-v1";
 const EXTENSION_TOKEN_STORAGE_KEY = "hostierExtensionToken";
+const CONNECTION_FLOW_STORAGE_KEY = "hostierConnectionFlowState";
+const HOSTIER_ORIGIN_STORAGE_KEY = "hostierPreferredOrigin";
+const DEFAULT_HOSTIER_URL = getExtensionConfig().hostierUrl.replace(/\/$/, "");
 let localeMessages = null;
+let currentHostierUrl = DEFAULT_HOSTIER_URL;
+
+function getAllowedHostierUrls() {
+  return [...new Set([DEFAULT_HOSTIER_URL, "http://localhost:5173"])];
+}
+
+function isAllowedHostierUrl(value) {
+  if (!value) return false;
+
+  try {
+    const origin = new URL(value).origin;
+    return getAllowedHostierUrls().includes(origin);
+  } catch {
+    return false;
+  }
+}
+
+function getHostierUrl() {
+  return currentHostierUrl;
+}
+
+function getHostierLoginUrl() {
+  return `${getHostierUrl()}/login`;
+}
+
+function getPrivacyPolicyUrl() {
+  return `${getHostierUrl()}/privacy`;
+}
+
+async function getStoredHostierUrl() {
+  const stored = await chrome.storage.local.get(HOSTIER_ORIGIN_STORAGE_KEY);
+  const value = stored?.[HOSTIER_ORIGIN_STORAGE_KEY];
+  return isAllowedHostierUrl(value) ? value : null;
+}
+
+async function storeHostierUrl(url) {
+  if (!isAllowedHostierUrl(url)) {
+    return;
+  }
+
+  await chrome.storage.local.set({
+    [HOSTIER_ORIGIN_STORAGE_KEY]: new URL(url).origin,
+  });
+}
+
+async function findPreferredHostierTab(url) {
+  const normalizedUrl = new URL(url).origin;
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+
+  if (activeTab?.url && activeTab.id && new URL(activeTab.url).origin === normalizedUrl) {
+    return activeTab;
+  }
+
+  const matchingTabs = await chrome.tabs.query({
+    url: `${normalizedUrl}/*`,
+  });
+
+  return matchingTabs.find((tab) => Number.isInteger(tab.id)) ?? null;
+}
+
+async function resolveHostierUrl() {
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+
+  if (activeTab?.url && isAllowedHostierUrl(activeTab.url)) {
+    currentHostierUrl = new URL(activeTab.url).origin;
+    await storeHostierUrl(currentHostierUrl);
+    return currentHostierUrl;
+  }
+
+  const stored = await getStoredHostierUrl();
+  if (stored) {
+    currentHostierUrl = stored;
+    return currentHostierUrl;
+  }
+
+  currentHostierUrl = DEFAULT_HOSTIER_URL;
+  return currentHostierUrl;
+}
 
 function interpolateMessage(template, placeholders = {}, substitutions = []) {
   let rendered = template;
@@ -72,9 +156,6 @@ const PLATFORM_CONFIGS = {
     homeUrl: "https://web.33m2.co.kr/host/main",
     ttlDays: 30,
     label: "33m2",
-    indicatorId: "indicator-33m2",
-    btnId: "btn-33m2",
-    metaId: "meta-33m2",
     autoMaintainEnabled: true,
   },
   ENKORSTAY: {
@@ -84,9 +165,6 @@ const PLATFORM_CONFIGS = {
     loginUrl: "https://host.enko.kr/signin",
     ttlDays: 365,
     label: "EnkorStay",
-    indicatorId: "indicator-enkorstay",
-    btnId: "btn-enkorstay",
-    metaId: "meta-enkorstay",
     autoMaintainEnabled: false,
   },
   LIVEANYWHERE: {
@@ -98,9 +176,6 @@ const PLATFORM_CONFIGS = {
     homeUrl: "https://console.liveanywhere.me/host",
     ttlDays: 30,
     label: "LiveAnywhere",
-    indicatorId: "indicator-liveanywhere",
-    btnId: "btn-liveanywhere",
-    metaId: "meta-liveanywhere",
     autoMaintainEnabled: false,
   },
 };
@@ -120,10 +195,21 @@ const ui = {
   guardCheckboxLabel: document.getElementById("guardCheckboxLabel"),
   guardPrimary: document.getElementById("guardPrimary"),
   guardSecondary: document.getElementById("guardSecondary"),
+  listView: document.getElementById("listView"),
+  platformList: document.getElementById("platformList"),
+  detailView: document.getElementById("detailView"),
+  detailBack: document.getElementById("detailBack"),
+  detailEyebrow: document.getElementById("detailEyebrow"),
+  detailTitle: document.getElementById("detailTitle"),
+  detailSummary: document.getElementById("detailSummary"),
+  accountsList: document.getElementById("accountsList"),
+  detailAddAccount: document.getElementById("detailAddAccount"),
 };
 
 let currentSession = null;
-const connectionMap = new Map();
+let currentPlatform = null;
+let resumeInFlight = false;
+const connectionsByPlatform = new Map();
 
 function openUrl(url) {
   chrome.tabs.create({ url });
@@ -195,83 +281,218 @@ function clearGuardState() {
   ui.guardCheckbox.onchange = null;
 }
 
-function setButtonsDisabled(disabled) {
-  for (const config of Object.values(PLATFORM_CONFIGS)) {
-    const btn = document.getElementById(config.btnId);
-    if (!btn.classList.contains("connected") && !btn.classList.contains("loading")) {
-      btn.disabled = disabled;
-    }
-  }
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function setPlatformLoading(platform, loading) {
-  const config = PLATFORM_CONFIGS[platform];
-  const btn = document.getElementById(config.btnId);
-  const indicator = document.getElementById(config.indicatorId);
+function getConnections(platform) {
+  return connectionsByPlatform.get(platform) ?? [];
+}
 
-  if (loading) {
-    btn.classList.add("loading");
-    btn.classList.remove("connected", "reconnect");
-    btn.disabled = true;
-    btn.textContent = msg("connecting");
-    indicator.classList.add("loading");
+function isReconnectRequired(connection) {
+  return (
+    connection.status === "EXPIRED"
+    || connection.status === "ERROR"
+    || connection.requiresReauth
+  );
+}
+
+function getConnectionMeta(connection) {
+  const parts = [];
+  if (connection.lastSyncedAt) {
+    parts.push(
+      `최신 업데이트 ${new Date(connection.lastSyncedAt).toLocaleString("ko-KR")}`,
+    );
+  }
+  if (connection.tokenExpiresAt) {
+    parts.push(
+      `만료 ${new Date(connection.tokenExpiresAt).toLocaleDateString("ko-KR")}`,
+    );
+  }
+  if (isReconnectRequired(connection)) {
+    parts.push("다시 연결 필요");
+  } else if (connection.autoMaintainEnabled) {
+    parts.push("자동 유지");
   } else {
-    btn.classList.remove("loading");
-    indicator.classList.remove("loading");
+    parts.push(msg("manualReconnectOnly"));
+  }
+  return parts.join(" · ");
+}
+
+function getListSummary(platform) {
+  const connections = getConnections(platform);
+  if (connections.length === 0) {
+    return "연결된 계정이 없습니다.";
+  }
+
+  if (connections.length === 1) {
+    const connection = connections[0];
+    return isReconnectRequired(connection)
+      ? `${connection.displayLabel} · 다시 연결 필요`
+      : connection.displayLabel;
+  }
+
+  const activeCount = connections.filter((connection) => connection.status === "ACTIVE").length;
+  const expiredCount = connections.filter((connection) => isReconnectRequired(connection)).length;
+  const parts = [`연결된 계정 ${connections.length}개`];
+  if (activeCount > 0) {
+    parts.push(`활성 ${activeCount}`);
+  }
+  if (expiredCount > 0) {
+    parts.push(`재연결 ${expiredCount}`);
+  }
+  return parts.join(" · ");
+}
+
+function getListStateClass(platform) {
+  const connections = getConnections(platform);
+  if (connections.some((connection) => connection.status === "ACTIVE")) {
+    return "connected";
+  }
+  if (connections.some((connection) => isReconnectRequired(connection))) {
+    return "expired";
+  }
+  return "idle";
+}
+
+function setCurrentPlatform(platform) {
+  currentPlatform = platform;
+  renderViews();
+}
+
+function renderPlatformList() {
+  ui.platformList.textContent = "";
+
+  for (const [platform, config] of Object.entries(PLATFORM_CONFIGS)) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "platform-row";
+    row.onclick = () => setCurrentPlatform(platform);
+
+    const state = document.createElement("span");
+    state.className = `state-dot ${getListStateClass(platform)}`;
+    row.append(state);
+
+    const body = document.createElement("div");
+    body.className = "platform-body";
+
+    const name = document.createElement("div");
+    name.className = "platform-name";
+    name.textContent = config.label;
+    body.append(name);
+
+    const summary = document.createElement("div");
+    summary.className = "platform-summary";
+    summary.textContent = getListSummary(platform);
+    body.append(summary);
+
+    row.append(body);
+
+    const action = document.createElement("span");
+    action.className = "platform-action";
+    action.textContent = getConnections(platform).length > 0 ? "관리" : msg("connect");
+    row.append(action);
+
+    ui.platformList.append(row);
   }
 }
 
-function getDefaultMeta(platform) {
-  return PLATFORM_CONFIGS[platform].autoMaintainEnabled
-    ? msg("autoMaintainAvailable")
-    : msg("manualReconnectOnly");
-}
-
-function setPlatformState(platform, connection) {
-  const config = PLATFORM_CONFIGS[platform];
-  const indicator = document.getElementById(config.indicatorId);
-  const btn = document.getElementById(config.btnId);
-  const meta = document.getElementById(config.metaId);
-  const isActive = connection?.status === "ACTIVE";
-  const isExpired = connection?.status === "EXPIRED";
-
-  btn.classList.remove("loading", "connected", "reconnect");
-  indicator.classList.remove("loading", "connected", "expired");
-
-  if (isActive) {
-    indicator.classList.add("connected");
-    indicator.textContent = "●";
-    btn.classList.add("connected");
-    btn.textContent = msg("connected");
-    btn.disabled = true;
-    meta.textContent = connection?.autoMaintainEnabled
-      ? msg("autoMaintainActive")
-      : msg("manualReconnectOnly");
+function renderDetailView() {
+  if (!currentPlatform) {
+    ui.detailView.hidden = true;
+    ui.listView.hidden = false;
     return;
   }
 
-  if (isExpired) {
-    indicator.classList.add("expired");
-    indicator.textContent = "●";
-    btn.classList.add("reconnect");
-    btn.textContent = msg("reconnect");
-    btn.disabled = false;
-    meta.textContent = connection?.autoMaintainEnabled
-      ? msg("autoMaintainInterrupted")
-      : msg("manualReconnectRequired");
+  const config = PLATFORM_CONFIGS[currentPlatform];
+  const connections = getConnections(currentPlatform);
+  ui.listView.hidden = true;
+  ui.detailView.hidden = false;
+  ui.detailEyebrow.textContent = connections.length > 0 ? "계정 관리" : "새 계정 연결";
+  ui.detailTitle.textContent = config.label;
+  ui.detailSummary.textContent =
+    connections.length > 1
+      ? `연결된 계정 ${connections.length}개`
+      : connections.length === 1
+        ? connections[0].displayLabel
+        : "아직 연결된 계정이 없습니다.";
+  ui.detailAddAccount.textContent =
+    connections.length > 0 ? "다른 계정 추가" : msg("connect");
+
+  ui.accountsList.textContent = "";
+
+  if (connections.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "대부분은 계정 하나만 연결하면 충분합니다. 추가 계정이 필요할 때만 더 연결하세요.";
+    ui.accountsList.append(empty);
     return;
   }
 
-  indicator.textContent = "○";
-  btn.textContent = msg("connect");
-  btn.disabled = false;
-  meta.textContent = getDefaultMeta(platform);
+  for (const connection of connections) {
+    const row = document.createElement("div");
+    row.className = "account-row";
+
+    const body = document.createElement("div");
+    body.className = "account-body";
+
+    const head = document.createElement("div");
+    head.className = "account-head";
+
+    const label = document.createElement("div");
+    label.className = "account-label";
+    label.textContent = connection.displayLabel;
+    head.append(label);
+
+    const state = document.createElement("div");
+    state.className = `account-state ${connection.status === "ACTIVE" ? "connected" : isReconnectRequired(connection) ? "expired" : "idle"}`;
+    state.textContent =
+      connection.status === "ACTIVE"
+        ? msg("connected")
+        : isReconnectRequired(connection)
+          ? msg("reconnect")
+          : "연결 안됨";
+    head.append(state);
+
+    body.append(head);
+
+    const meta = document.createElement("div");
+    meta.className = "account-meta";
+    meta.textContent = getConnectionMeta(connection);
+    body.append(meta);
+    row.append(body);
+
+    const actions = document.createElement("div");
+    actions.className = "account-actions";
+
+    if (isReconnectRequired(connection)) {
+      const reconnectButton = document.createElement("button");
+      reconnectButton.type = "button";
+      reconnectButton.className = "text-action primary";
+      reconnectButton.textContent = msg("reconnect");
+      reconnectButton.onclick = () => {
+        showDisclosure(currentPlatform, { connectionId: connection.id });
+      };
+      actions.append(reconnectButton);
+    }
+
+    const disconnectButton = document.createElement("button");
+    disconnectButton.type = "button";
+    disconnectButton.className = "text-action";
+    disconnectButton.textContent = "해제";
+    disconnectButton.onclick = () => {
+      void disconnectConnection(currentPlatform, connection);
+    };
+    actions.append(disconnectButton);
+    row.append(actions);
+
+    ui.accountsList.append(row);
+  }
 }
 
-function renderPlatformStates() {
-  for (const platform of Object.keys(PLATFORM_CONFIGS)) {
-    setPlatformState(platform, connectionMap.get(platform) ?? null);
-  }
+function renderViews() {
+  renderPlatformList();
+  renderDetailView();
 }
 
 async function getStoredExtensionToken() {
@@ -302,8 +523,57 @@ async function clearExtensionToken() {
   await chrome.storage.local.remove(EXTENSION_TOKEN_STORAGE_KEY);
 }
 
+async function exchangeExtensionTokenFromTab(hostierUrl) {
+  const tab = await findPreferredHostierTab(hostierUrl);
+  if (!tab?.id) {
+    return null;
+  }
+
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      args: [hostierUrl],
+      func: async (baseUrl) => {
+        try {
+          const response = await fetch(`${baseUrl}/api/auth/extension/exchange`, {
+            method: "POST",
+            credentials: "include",
+          });
+          if (!response.ok) {
+            return { ok: false, status: response.status };
+          }
+
+          const body = await response.json().catch(() => null);
+          return { ok: true, body };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      },
+    });
+
+    if (!result?.result?.ok) {
+      return null;
+    }
+
+    return result.result.body ?? null;
+  } catch (error) {
+    console.error("[hostier] Failed to exchange extension token via tab:", error);
+    return null;
+  }
+}
+
 async function exchangeExtensionToken() {
-  const response = await fetch(`${HOSTIER_URL}/api/auth/extension/exchange`, {
+  const hostierUrl = await resolveHostierUrl();
+  const tabBody = await exchangeExtensionTokenFromTab(hostierUrl);
+  if (tabBody?.token && typeof tabBody.expiresInSeconds === "number") {
+    await storeExtensionToken(tabBody.token, tabBody.expiresInSeconds);
+    return tabBody.token;
+  }
+
+  const response = await fetch(`${hostierUrl}/api/auth/extension/exchange`, {
     method: "POST",
     credentials: "include",
   });
@@ -335,13 +605,14 @@ async function getExtensionToken({ forceRefresh = false } = {}) {
 }
 
 async function fetchHostier(path, options = {}) {
+  const hostierUrl = await resolveHostierUrl();
   let token = await getExtensionToken();
   const headers = new Headers(options.headers || {});
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  let response = await fetch(`${HOSTIER_URL}${path}`, {
+  let response = await fetch(`${hostierUrl}${path}`, {
     ...options,
     headers,
     credentials: "include",
@@ -358,7 +629,7 @@ async function fetchHostier(path, options = {}) {
   }
 
   headers.set("Authorization", `Bearer ${token}`);
-  response = await fetch(`${HOSTIER_URL}${path}`, {
+  response = await fetch(`${hostierUrl}${path}`, {
     ...options,
     headers,
     credentials: "include",
@@ -367,16 +638,33 @@ async function fetchHostier(path, options = {}) {
   return response;
 }
 
+async function getConnectionFlowState() {
+  const stored = await chrome.storage.local.get(CONNECTION_FLOW_STORAGE_KEY);
+  return stored?.[CONNECTION_FLOW_STORAGE_KEY] || null;
+}
+
+async function setConnectionFlowState(state) {
+  await chrome.storage.local.set({
+    [CONNECTION_FLOW_STORAGE_KEY]: {
+      ...state,
+      updatedAt: Date.now(),
+    },
+  });
+}
+
+async function clearConnectionFlowState() {
+  await chrome.storage.local.remove(CONNECTION_FLOW_STORAGE_KEY);
+}
+
 function showLoginGate() {
   clearStatus();
   ui.userEmail.textContent = msg("loginRequired");
-  setButtonsDisabled(true);
   setGuardState({
     eyebrow: msg("loginGateEyebrow"),
     title: msg("loginGateTitle"),
     body: msg("loginGateBody"),
     primaryLabel: msg("loginGatePrimary"),
-    primaryAction: () => openUrl(HOSTIER_LOGIN_URL),
+    primaryAction: () => openUrl(getHostierLoginUrl()),
     secondaryLabel: msg("refreshStatus"),
     secondaryAction: () => {
       void initializePopup();
@@ -384,11 +672,10 @@ function showLoginGate() {
   });
 }
 
-function showDisclosure(platform) {
+function showDisclosure(platform, options = {}) {
   const config = PLATFORM_CONFIGS[platform];
   clearStatus();
   ui.userEmail.textContent = currentSession?.user?.email || msg("loginRequired");
-  setButtonsDisabled(true);
   setGuardState({
     eyebrow: msg("consentEyebrow"),
     title: msg("connectDisclosureTitle", [config.label]),
@@ -405,15 +692,15 @@ function showDisclosure(platform) {
         : msg("disclosureDisconnectDeletes"),
     ],
     checkboxLabel: msg("connectDisclosureCheckbox"),
-    primaryLabel: msg("connectDisclosurePrimary"),
+    primaryLabel:
+      options.connectionId ? msg("reconnect") : msg("connectDisclosurePrimary"),
     primaryAction: () => {
-      void connectPlatform(platform);
+      void connectPlatform(platform, options);
     },
     primaryDisabled: true,
     secondaryLabel: msg("back"),
     secondaryAction: async () => {
       clearGuardState();
-      setButtonsDisabled(false);
       await loadStatus();
     },
   });
@@ -423,13 +710,22 @@ function showDisclosure(platform) {
   };
 }
 
-function requestPlatformPermission(config) {
-  const origins = [config.origin];
+function hasPlatformPermission(config) {
+  return new Promise((resolve) => {
+    chrome.permissions.contains({ origins: [config.origin] }, (granted) => {
+      resolve(Boolean(granted));
+    });
+  });
+}
+
+async function ensurePlatformPermission(config) {
+  if (await hasPlatformPermission(config)) {
+    return true;
+  }
 
   return new Promise((resolve) => {
-    // Keep the optional permission prompt in the direct click path.
-    chrome.permissions.request({ origins }, (granted) => {
-      resolve(Boolean(granted));
+    chrome.permissions.request({ origins: [config.origin] }, async (granted) => {
+      resolve(Boolean(granted) && await hasPlatformPermission(config));
     });
   });
 }
@@ -459,9 +755,9 @@ async function getFirebaseRefreshToken(tabId) {
                 return (
                   candidates.find(
                     (candidate) =>
-                      typeof candidate === "string" &&
-                      candidate.length > 0 &&
-                      candidate.split(".").length !== 3,
+                      typeof candidate === "string"
+                      && candidate.length > 0
+                      && candidate.split(".").length !== 3,
                   ) || null
                 );
               };
@@ -547,66 +843,113 @@ async function readPlatformAuthBundle(platform) {
   };
 }
 
-async function loadStatus() {
-  try {
-    const res = await fetchHostier("/api/platform-connections");
+async function readPlatformAuthBundleWithRetry(platform) {
+  let lastResult = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    lastResult = await readPlatformAuthBundle(platform);
+    if (lastResult.ok) {
+      return lastResult;
+    }
 
-    if (!res.ok) {
-      if (res.status === 401) {
-        showLoginGate();
-      }
+    if (lastResult.openUrl) {
+      return lastResult;
+    }
+
+    await delay(350 * (attempt + 1));
+  }
+  return lastResult;
+}
+
+async function disconnectConnection(platform, connection) {
+  if (!window.confirm(`"${connection.displayLabel}" 연결을 해제할까요?`)) {
+    return;
+  }
+
+  try {
+    const response = await fetchHostier(
+      `/api/platform-connections/${encodeURIComponent(connection.id)}`,
+      { method: "DELETE" },
+    );
+
+    if (response.status === 401) {
+      showLoginGate();
       return;
     }
 
-    const data = await res.json();
-    currentSession = {
-      user: {
-        email: data.userEmail || null,
-      },
-    };
-    ui.userEmail.textContent = data.userEmail || msg("pleaseLogin");
-    connectionMap.clear();
-    for (const connection of data.connections ?? []) {
-      connectionMap.set(connection.platform, connection);
+    if (!response.ok) {
+      throw new Error("disconnect failed");
     }
 
-    clearGuardState();
-    setButtonsDisabled(false);
-    renderPlatformStates();
-  } catch (e) {
-    console.error("[hostier] Failed to load status:", e);
-    showStatus("error", msg("statusLoadFailed"));
+    await loadStatus();
+    showStatus("success", `${PLATFORM_CONFIGS[platform].label} 계정 연결을 해제했습니다.`);
+  } catch (error) {
+    console.error("[hostier] disconnect failed:", error);
+    showStatus("error", "연결 해제에 실패했습니다.");
   }
 }
 
-async function connectPlatform(platform) {
+async function connectPlatform(platform, options = {}) {
   const config = PLATFORM_CONFIGS[platform];
-  setPlatformLoading(platform, true);
-  showStatus("info", msg("connectingStatus", [config.label]));
+  clearGuardState();
+  setCurrentPlatform(platform);
+
+  const baseFlow = {
+    platform,
+    connectionId: options.connectionId ?? null,
+  };
 
   try {
-    const granted = await requestPlatformPermission(config);
+    await setConnectionFlowState({
+      ...baseFlow,
+      step: "permission_requested",
+      message: `${config.label} 권한을 확인하고 있습니다.`,
+    });
+    showStatus("info", `${config.label} 권한을 확인하고 있습니다.`);
+
+    const granted = await ensurePlatformPermission(config);
     if (!granted) {
-      showStatus("error", msg("permissionDenied", [config.label]));
+      const message = msg("permissionDenied", [config.label]);
+      await setConnectionFlowState({ ...baseFlow, step: "error", message });
+      showStatus("error", message);
       return;
     }
 
-    const authBundle = await readPlatformAuthBundle(platform);
-    if (!authBundle.ok) {
-      if (authBundle.openUrl) {
+    await setConnectionFlowState({
+      ...baseFlow,
+      step: "permission_granted",
+      message: `${config.label} 권한이 확인되었습니다.`,
+    });
+
+    const authBundle = await readPlatformAuthBundleWithRetry(platform);
+    if (!authBundle?.ok) {
+      if (authBundle?.openUrl) {
         await chrome.tabs.create({ url: authBundle.openUrl });
       }
-      clearGuardState();
-      setButtonsDisabled(false);
-      showStatus("error", authBundle.error);
-      renderPlatformStates();
+
+      const message = authBundle?.error || msg("connectionFailed", [config.label]);
+      await setConnectionFlowState({
+        ...baseFlow,
+        step: "awaiting_source",
+        openUrl: authBundle?.openUrl || null,
+        message,
+      });
+      showStatus("error", message);
+      await loadStatus();
       return;
     }
+
+    await setConnectionFlowState({
+      ...baseFlow,
+      step: "saving_connection",
+      message: msg("connectingStatus", [config.label]),
+    });
+    showStatus("info", msg("connectingStatus", [config.label]));
 
     const response = await fetchHostier("/api/platform-connections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        connectionId: options.connectionId ?? undefined,
         platform,
         token: authBundle.token,
         refreshToken: authBundle.refreshToken,
@@ -625,21 +968,104 @@ async function connectPlatform(platform) {
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => null);
-      showStatus(
-        "error",
-        errorBody?.error || msg("connectionFailed", [config.label]),
-      );
+      const message = errorBody?.error || msg("connectionFailed", [config.label]);
+      await setConnectionFlowState({ ...baseFlow, step: "error", message });
+      showStatus("error", message);
       return;
     }
 
     await loadStatus();
-    showStatus("success", msg("connectionComplete", [config.label]));
+    const successMessage = msg("connectionComplete", [config.label]);
+    await setConnectionFlowState({
+      ...baseFlow,
+      step: "success",
+      message: successMessage,
+    });
+    showStatus("success", successMessage);
+    await clearConnectionFlowState();
   } catch (e) {
     console.error("[hostier] Platform connection failed:", e);
-    showStatus("error", msg("connectionFailed", [config.label]));
+    const message = msg("connectionFailed", [config.label]);
+    await setConnectionFlowState({ ...baseFlow, step: "error", message });
+    showStatus("error", message);
   } finally {
-    setPlatformLoading(platform, false);
-    renderPlatformStates();
+    renderViews();
+  }
+}
+
+async function resumeConnectionFlowIfNeeded() {
+  if (resumeInFlight) {
+    return;
+  }
+
+  const flow = await getConnectionFlowState();
+  if (!flow?.platform) {
+    return;
+  }
+
+  if (Date.now() - Number(flow.updatedAt || 0) > 10 * 60 * 1000) {
+    await clearConnectionFlowState();
+    return;
+  }
+
+  setCurrentPlatform(flow.platform);
+
+  if (flow.step === "success") {
+    showStatus("success", flow.message || "연결이 완료되었습니다.");
+    await clearConnectionFlowState();
+    return;
+  }
+
+  if (flow.step === "error") {
+    showStatus("error", flow.message || "연결에 실패했습니다.");
+    return;
+  }
+
+  resumeInFlight = true;
+  try {
+    await connectPlatform(flow.platform, {
+      connectionId: flow.connectionId || undefined,
+    });
+  } finally {
+    resumeInFlight = false;
+  }
+}
+
+async function loadStatus() {
+  try {
+    const res = await fetchHostier("/api/platform-connections");
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        showLoginGate();
+      }
+      return;
+    }
+
+    const data = await res.json();
+    currentSession = {
+      user: {
+        email: data.userEmail || null,
+      },
+    };
+    ui.userEmail.textContent = data.userEmail || msg("pleaseLogin");
+
+    connectionsByPlatform.clear();
+    for (const platform of Object.keys(PLATFORM_CONFIGS)) {
+      connectionsByPlatform.set(platform, []);
+    }
+
+    for (const connection of data.connections ?? []) {
+      const list = connectionsByPlatform.get(connection.platform) ?? [];
+      list.push(connection);
+      connectionsByPlatform.set(connection.platform, list);
+    }
+
+    clearGuardState();
+    renderViews();
+  } catch (e) {
+    console.error("[hostier] Failed to load status:", e);
+    showStatus("error", msg("statusLoadFailed"));
   }
 }
 
@@ -653,39 +1079,34 @@ async function initializePopup() {
   currentSession = { user: { email: null } };
   ui.userEmail.textContent = msg("pleaseLogin");
   await loadStatus();
+  await resumeConnectionFlowIfNeeded();
 }
 
-document.getElementById("btn-33m2").addEventListener("click", () => {
-  showDisclosure("THIRTY_THREE_M2");
+ui.detailBack.addEventListener("click", () => {
+  currentPlatform = null;
+  renderViews();
 });
 
-document.getElementById("btn-enkorstay").addEventListener("click", () => {
-  showDisclosure("ENKORSTAY");
+ui.detailAddAccount.addEventListener("click", () => {
+  if (!currentPlatform) return;
+  showDisclosure(currentPlatform);
 });
 
-document.getElementById("btn-liveanywhere").addEventListener("click", () => {
-  showDisclosure("LIVEANYWHERE");
-});
-
-document.getElementById("openWebsite").addEventListener("click", (event) => {
+ui.openWebsite.addEventListener("click", (event) => {
   event.preventDefault();
-  openUrl(HOSTIER_URL);
+  openUrl(getHostierUrl());
 });
 
 async function bootstrapPopup() {
   await loadLocaleMessages();
+  await resolveHostierUrl();
 
   ui.userEmail.textContent = msg("loginRequired");
   ui.openWebsite.textContent = msg("openWebsite");
   ui.privacyLink.textContent = msg("privacyPolicy");
-  ui.privacyLink.href = PRIVACY_POLICY_URL;
+  ui.privacyLink.href = getPrivacyPolicyUrl();
 
-  for (const platform of Object.keys(PLATFORM_CONFIGS)) {
-    setPlatformLoading(platform, true);
-    const meta = document.getElementById(PLATFORM_CONFIGS[platform].metaId);
-    meta.textContent = getDefaultMeta(platform);
-  }
-
+  renderViews();
   await initializePopup();
 }
 

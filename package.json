@@ -2,6 +2,7 @@
   "name": "strva-monorepo",
   "private": true,
   "scripts": {
+    "extension:dev": "node ./scripts/extension-dev.mjs",
     "extension:configure:dev": "node ./scripts/configure-extension.mjs dev",
     "extension:configure:prod": "node ./scripts/configure-extension.mjs prod",
     "extension:package:dev": "node ./scripts/package-extension.mjs dev",

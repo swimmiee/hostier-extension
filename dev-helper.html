@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Hostier Extension Dev Helper</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      background: #faf8f4;
+      color: #111827;
+    }
+
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 32px 24px 40px;
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: #6b7280;
+    }
+
+    h1 {
+      margin: 8px 0 0;
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .lead {
+      margin: 16px 0 0;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #4b5563;
+    }
+
+    .status {
+      margin-top: 24px;
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: white;
+      border: 1px solid rgba(17, 24, 39, 0.08);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .status strong {
+      color: #2f6f43;
+    }
+
+    ol {
+      margin: 24px 0 0;
+      padding-left: 20px;
+      color: #4b5563;
+      line-height: 1.8;
+      font-size: 15px;
+    }
+
+    code {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 13px;
+      background: rgba(17, 24, 39, 0.06);
+      padding: 2px 6px;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="eyebrow">Hostier Extension Dev</div>
+    <h1>자동 reload 대기 중</h1>
+    <p class="lead">
+      이 탭을 열어두면 <code>extension/</code> 안의 파일이 바뀔 때마다 개발용 watcher가
+      확장을 자동으로 다시 불러옵니다.
+    </p>
+    <div class="status" id="status">
+      <strong>준비 중</strong><br>
+      watcher가 <code>dev-reload.json</code> 을 갱신하면 확장을 자동 reload 합니다.
+    </div>
+    <ol>
+      <li><code>npm run extension:dev</code> 를 실행합니다.</li>
+      <li>Chrome에서 unpacked 확장으로 <code>extension/</code> 폴더를 한 번만 등록합니다.</li>
+      <li>이 탭과 Hostier 탭을 열어둔 채로 extension 파일을 수정합니다.</li>
+    </ol>
+  </main>
+  <script src="config.js"></script>
+  <script src="dev-helper.js"></script>
+</body>
+</html>
