@@ -94,8 +94,8 @@ const hostierUrl = normalizeHostierUrl(
   process.env.HOSTIER_WEB_URL || TARGETS[target].defaultHostierUrl,
 );
 
-const manifestPath = resolve("extension/manifest.json");
-const configPath = resolve("extension/config.js");
+const manifestPath = resolve("manifest.json");
+const configPath = resolve("config.js");
 
 writeFileIfChanged(
   manifestPath,

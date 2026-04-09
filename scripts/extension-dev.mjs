@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, "..");
-const extensionDir = resolve(rootDir, "extension");
+const extensionDir = rootDir;
 const markerPath = resolve(extensionDir, "dev-reload.json");
 const configureScriptPath = resolve(scriptDir, "configure-extension.mjs");
 
@@ -109,7 +109,7 @@ writeReloadMarker("startup");
 
 console.log("");
 console.log("[extension:dev] Dev mode ready.");
-console.log("[extension:dev] 1. Load the unpacked /extension folder once in chrome://extensions");
+console.log("[extension:dev] 1. Load this repo root as the unpacked extension once in chrome://extensions");
 console.log("[extension:dev] 2. Keep the Hostier tab open");
 console.log("[extension:dev] 3. This watcher will rewrite config + trigger extension reload on file changes");
 console.log("");

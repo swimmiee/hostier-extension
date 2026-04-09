@@ -1,15 +1,18 @@
 {
-  "name": "strva-monorepo",
+  "name": "hostier-extension",
   "private": true,
+  "version": "0.1.0",
   "scripts": {
-    "extension:dev": "node ./scripts/extension-dev.mjs",
-    "extension:configure:dev": "node ./scripts/configure-extension.mjs dev",
-    "extension:configure:prod": "node ./scripts/configure-extension.mjs prod",
-    "extension:package:dev": "node ./scripts/package-extension.mjs dev",
-    "extension:package:prod": "node ./scripts/package-extension.mjs prod"
-  },
-  "devDependencies": {
-    "@prisma/client": "^7.5.0",
-    "prisma": "^7.5.0"
+    "dev": "node ./scripts/extension-dev.mjs",
+    "configure:dev": "node ./scripts/configure-extension.mjs dev",
+    "configure:prod": "node ./scripts/configure-extension.mjs prod",
+    "package:dev": "node ./scripts/package-extension.mjs dev",
+    "package:prod": "node ./scripts/package-extension.mjs prod",
+    "verify": "npm run package:prod",
+    "extension:dev": "npm run dev",
+    "extension:configure:dev": "npm run configure:dev",
+    "extension:configure:prod": "npm run configure:prod",
+    "extension:package:dev": "npm run package:dev",
+    "extension:package:prod": "npm run package:prod"
   }
 }

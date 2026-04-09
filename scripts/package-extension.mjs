@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,8 +11,9 @@ if (!["dev", "prod"].includes(target)) {
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, "..");
 const configureScriptPath = resolve(scriptDir, "configure-extension.mjs");
-const extensionDir = resolve(rootDir, "extension");
-const outputZipPath = resolve(rootDir, "web/public/hostier-extension.zip");
+const extensionDir = rootDir;
+const outputDir = resolve(rootDir, "dist");
+const outputZipPath = resolve(outputDir, "hostier-extension.zip");
 
 execFileSync(process.execPath, [configureScriptPath, target], {
   cwd: rootDir,
@@ -22,6 +23,8 @@ execFileSync(process.execPath, [configureScriptPath, target], {
 if (existsSync(outputZipPath)) {
   rmSync(outputZipPath);
 }
+
+mkdirSync(outputDir, { recursive: true });
 
 try {
   execFileSync("zip", ["-qr", outputZipPath, ".", "-x", "*.DS_Store"], {
