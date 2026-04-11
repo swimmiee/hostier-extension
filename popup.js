@@ -13,6 +13,19 @@ const HOSTIER_ORIGIN_STORAGE_KEY = "hostierPreferredOrigin";
 const DEFAULT_HOSTIER_URL = getExtensionConfig().hostierUrl.replace(/\/$/, "");
 let localeMessages = null;
 let currentHostierUrl = DEFAULT_HOSTIER_URL;
+const connectionDateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
+const connectionDateFormatter = new Intl.DateTimeFormat("ko-KR", {
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+});
 
 function getAllowedHostierUrls() {
   return [...new Set([DEFAULT_HOSTIER_URL, "http://localhost:5173"])];
@@ -314,24 +327,28 @@ function isReconnectRequired(connection) {
   );
 }
 
+function formatConnectionDateTime(value) {
+  return connectionDateTimeFormatter.format(new Date(value));
+}
+
+function formatConnectionDate(value) {
+  return connectionDateFormatter.format(new Date(value));
+}
+
 function getConnectionMeta(connection) {
   const parts = [];
   if (connection.lastSyncedAt) {
-    parts.push(
-      `최신 업데이트 ${new Date(connection.lastSyncedAt).toLocaleString("ko-KR")}`,
-    );
+    parts.push(`업데이트 ${formatConnectionDateTime(connection.lastSyncedAt)}`);
   }
   if (connection.tokenExpiresAt) {
-    parts.push(
-      `만료 ${new Date(connection.tokenExpiresAt).toLocaleDateString("ko-KR")}`,
-    );
+    parts.push(`만료 ${formatConnectionDate(connection.tokenExpiresAt)}`);
   }
-  if (isReconnectRequired(connection)) {
-    parts.push("다시 연결 필요");
-  } else if (connection.autoMaintainEnabled) {
-    parts.push("자동 유지");
-  } else {
-    parts.push(msg("manualReconnectOnly"));
+  if (!isReconnectRequired(connection)) {
+    if (connection.autoMaintainEnabled) {
+      parts.push("자동 유지");
+    } else {
+      parts.push(msg("manualReconnectOnly"));
+    }
   }
   return parts.join(" · ");
 }
@@ -349,7 +366,7 @@ function getListSummary(platform) {
   if (connections.length === 1) {
     const connection = connections[0];
     return isReconnectRequired(connection)
-      ? `${connection.displayLabel} · 다시 연결 필요`
+      ? `${connection.displayLabel} · ${msg("expired")}`
       : connection.displayLabel;
   }
 
@@ -360,7 +377,7 @@ function getListSummary(platform) {
     parts.push(`활성 ${activeCount}`);
   }
   if (expiredCount > 0) {
-    parts.push(`재연결 ${expiredCount}`);
+    parts.push(`만료 ${expiredCount}`);
   }
   return parts.join(" · ");
 }
@@ -451,10 +468,13 @@ function renderDetailView() {
   ui.listView.hidden = true;
   ui.detailView.hidden = false;
   ui.detailTitle.textContent = config.label;
-  ui.detailSummary.hidden = true;
-  ui.detailSummary.textContent = "";
+  ui.detailSummary.hidden = currentPlatform !== "THIRTY_THREE_M2" || connections.length === 0;
+  ui.detailSummary.textContent =
+    currentPlatform === "THIRTY_THREE_M2" && connections.length > 0
+      ? msg("detailReconnectHint")
+      : "";
   ui.detailAddAccount.textContent =
-    connections.length > 0 ? "다른 계정 추가" : msg("connect");
+    connections.length > 0 ? msg("addAnotherAccount") : msg("connect");
 
   ui.accountsList.textContent = "";
   ui.accountsList.hidden = connections.length === 0;
@@ -484,7 +504,7 @@ function renderDetailView() {
       connection.status === "ACTIVE"
         ? msg("connected")
         : isReconnectRequired(connection)
-          ? msg("reconnect")
+          ? msg("expired")
           : "연결 안됨";
     head.append(state);
 
@@ -505,8 +525,9 @@ function renderDetailView() {
       reconnectButton.className = "text-action primary";
       reconnectButton.textContent = msg("reconnect");
       reconnectButton.onclick = () => {
-        void connectPlatform(currentPlatform, {
+        showDisclosure(currentPlatform, {
           connectionId: connection.id,
+          displayLabel: connection.displayLabel,
           showDetailView: true,
         });
       };
@@ -714,6 +735,7 @@ function showLoginGate() {
 
 function showDisclosure(platform, options = {}) {
   const config = PLATFORM_CONFIGS[platform];
+  const accountLabel = typeof options.displayLabel === "string" ? options.displayLabel : "";
   clearStatus();
   setHeaderState({
     email: currentSession?.user?.email || "",
@@ -721,7 +743,11 @@ function showDisclosure(platform, options = {}) {
   });
   setGuardState({
     title: msg("connectDisclosureTitle", [config.label]),
-    body: msg("connectDisclosureBody", [config.label]),
+    body: options.connectionId
+      ? msg("connectDisclosureReconnectBody", [accountLabel, config.label])
+      : hasExistingConnections(platform)
+        ? msg("connectDisclosureAddAccountBody", [config.label])
+        : msg("connectDisclosureBody", [config.label]),
     items: [
       msg("disclosureReadsAuth", [config.label]),
       msg("disclosureTransfersToHostier"),
@@ -750,6 +776,22 @@ function showDisclosure(platform, options = {}) {
   ui.guardCheckbox.onchange = () => {
     ui.guardPrimary.disabled = !ui.guardCheckbox.checked;
   };
+}
+
+function formatConnectionError(platform, options = {}, errorBody = null) {
+  const config = PLATFORM_CONFIGS[platform];
+  const baseMessage = errorBody?.error || msg("connectionFailed", [config.label]);
+
+  switch (errorBody?.code) {
+    case "RECONNECT_ACCOUNT_MISMATCH":
+      return `${baseMessage} ${msg("reconnectMismatchHint")}`;
+    case "ACCOUNT_CONNECTED_TO_ANOTHER_USER":
+      return `${baseMessage} ${msg("accountConnectedElsewhereHint")}`;
+    case "ALREADY_CONNECTED_ACCOUNT":
+      return `${baseMessage} ${msg("alreadyConnectedHint")}`;
+    default:
+      return baseMessage;
+  }
 }
 
 function hasPlatformPermission(config) {
@@ -1031,7 +1073,7 @@ async function connectPlatform(platform, options = {}) {
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => null);
-      const message = errorBody?.error || msg("connectionFailed", [config.label]);
+      const message = formatConnectionError(platform, options, errorBody);
       await setConnectionFlowState({ ...baseFlow, step: "error", message });
       showStatus("error", message);
       return;
@@ -1180,7 +1222,7 @@ ui.detailBack.addEventListener("click", () => {
 
 ui.detailAddAccount.addEventListener("click", () => {
   if (!currentPlatform) return;
-  void connectPlatform(currentPlatform, { showDetailView: true });
+  showDisclosure(currentPlatform, { showDetailView: true });
 });
 
 ui.openWebsite.addEventListener("click", (event) => {

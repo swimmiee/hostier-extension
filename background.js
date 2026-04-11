@@ -526,7 +526,7 @@ async function continuePendingConnectionFlow(flow) {
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => null);
-      const message = errorBody?.error || msg("connectionFailed", [config.label]);
+      const message = formatConnectionError(flow.platform, flow, errorBody);
       await setConnectionFlowState({ ...baseFlow, step: "error", message });
       return;
     }
@@ -543,6 +543,22 @@ async function continuePendingConnectionFlow(flow) {
       step: "error",
       message: msg("connectionFailed", [config.label]),
     });
+  }
+}
+
+function formatConnectionError(platform, flow, errorBody) {
+  const config = PLATFORM_CONFIGS[platform];
+  const baseMessage = errorBody?.error || msg("connectionFailed", [config.label]);
+
+  switch (errorBody?.code) {
+    case "RECONNECT_ACCOUNT_MISMATCH":
+      return `${baseMessage} ${msg("reconnectMismatchHint")}`;
+    case "ACCOUNT_CONNECTED_TO_ANOTHER_USER":
+      return `${baseMessage} ${msg("accountConnectedElsewhereHint")}`;
+    case "ALREADY_CONNECTED_ACCOUNT":
+      return `${baseMessage} ${msg("alreadyConnectedHint")}`;
+    default:
+      return baseMessage;
   }
 }
 

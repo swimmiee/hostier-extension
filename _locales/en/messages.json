@@ -20,6 +20,9 @@
   "reconnect": {
     "message": "Reconnect"
   },
+  "expired": {
+    "message": "Expired"
+  },
   "openWebsite": {
     "message": "Open website"
   },
@@ -72,11 +75,33 @@
       }
     }
   },
+  "connectDisclosureReconnectBody": {
+    "message": "This only refreshes the existing connection for $account$. If the currently signed-in $platform$ account is different, Hostier blocks the reconnect.",
+    "placeholders": {
+      "account": {
+        "content": "$1"
+      },
+      "platform": {
+        "content": "$2"
+      }
+    }
+  },
+  "connectDisclosureAddAccountBody": {
+    "message": "This adds the currently signed-in $platform$ account as a new connection. Existing connections stay in place.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
   "connectDisclosureCheckbox": {
     "message": "I have read this and want to continue with the connection."
   },
   "connectDisclosurePrimary": {
     "message": "Agree to connect"
+  },
+  "addAnotherAccount": {
+    "message": "Add another account"
   },
   "back": {
     "message": "Back"
@@ -165,6 +190,18 @@
         "content": "$1"
       }
     }
+  },
+  "detailReconnectHint": {
+    "message": "Reconnect only refreshes the selected account. Use Add another account to connect the currently signed-in account as a separate entry."
+  },
+  "reconnectMismatchHint": {
+    "message": "If you want to connect the currently signed-in account, use Add another account instead."
+  },
+  "accountConnectedElsewhereHint": {
+    "message": "The same 33m2 account cannot be connected to another Hostier account at the same time."
+  },
+  "alreadyConnectedHint": {
+    "message": "That account is already connected. Sign in with a different account and try again."
   },
   "connectionComplete": {
     "message": "$platform$ connected successfully.",

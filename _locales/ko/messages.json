@@ -20,6 +20,9 @@
   "reconnect": {
     "message": "다시 연결"
   },
+  "expired": {
+    "message": "만료됨"
+  },
   "openWebsite": {
     "message": "웹사이트 열기"
   },
@@ -72,11 +75,33 @@
       }
     }
   },
+  "connectDisclosureReconnectBody": {
+    "message": "$account$ 계정 연결만 다시 확인합니다. 현재 $platform$에 로그인된 계정이 다르면 연결이 차단됩니다.",
+    "placeholders": {
+      "account": {
+        "content": "$1"
+      },
+      "platform": {
+        "content": "$2"
+      }
+    }
+  },
+  "connectDisclosureAddAccountBody": {
+    "message": "현재 로그인된 $platform$ 계정을 새 연결로 추가합니다. 기존 연결은 그대로 유지됩니다.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
   "connectDisclosureCheckbox": {
     "message": "위 내용을 읽고 이 연결을 진행합니다."
   },
   "connectDisclosurePrimary": {
     "message": "연결 동의"
+  },
+  "addAnotherAccount": {
+    "message": "다른 계정 추가"
   },
   "back": {
     "message": "뒤로"
@@ -165,6 +190,18 @@
         "content": "$1"
       }
     }
+  },
+  "detailReconnectHint": {
+    "message": "다시 연결은 선택한 계정만 갱신합니다. 현재 로그인된 계정으로 새 연결을 만들려면 다른 계정 추가를 사용하세요."
+  },
+  "reconnectMismatchHint": {
+    "message": "현재 로그인된 계정으로 연결하려면 다른 계정 추가를 사용하세요."
+  },
+  "accountConnectedElsewhereHint": {
+    "message": "같은 33m2 계정은 다른 Hostier 계정과 동시에 연결할 수 없습니다."
+  },
+  "alreadyConnectedHint": {
+    "message": "이미 연결된 계정입니다. 다른 계정으로 로그인한 뒤 다시 시도해주세요."
   },
   "connectionComplete": {
     "message": "$platform$ 연결이 완료되었습니다.",
