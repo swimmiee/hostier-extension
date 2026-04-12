@@ -16,6 +16,23 @@
 
     <div class="status" id="status" hidden></div>
 
+    <section class="view awaiting-view" id="awaitingView" hidden>
+      <div class="awaiting-copy">
+        <p class="awaiting-kicker" id="awaitingKicker"></p>
+        <h1 class="awaiting-title" id="awaitingTitle"></h1>
+        <p class="awaiting-body" id="awaitingBody"></p>
+      </div>
+      <div class="awaiting-actions">
+        <button class="awaiting-btn primary" id="awaitingPrimary" type="button"></button>
+        <button class="awaiting-btn secondary" id="awaitingSecondary" type="button"></button>
+      </div>
+    </section>
+
+    <section class="loading-view" id="loadingView">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p class="loading-text" id="loadingText">연결 상태를 불러오고 있습니다.</p>
+    </section>
+
     <section class="guard" id="guard" hidden>
       <h1 class="guard-title" id="guardTitle"></h1>
       <p class="guard-body" id="guardBody"></p>
@@ -34,7 +51,7 @@
       <a class="guard-link" id="privacyLink" href="#" target="_blank" rel="noreferrer"></a>
     </section>
 
-    <section class="view" id="listView">
+    <section class="view" id="listView" hidden>
       <div class="section-head">
         <h1 class="sr-only" id="listTitle"></h1>
         <p class="section-note" id="listIntro"></p>
@@ -49,12 +66,24 @@
         <p class="section-subtitle" id="detailSummary"></p>
       </div>
       <div class="accounts-list" id="accountsList"></div>
-      <button class="primary-action" id="detailAddAccount" type="button"></button>
+      <div class="detail-actions">
+        <button class="secondary-action" id="detailBulkReconnect" type="button" hidden></button>
+        <button class="secondary-action" id="detailSafeLogout" type="button" hidden></button>
+        <button class="primary-action" id="detailAddAccount" type="button"></button>
+      </div>
     </section>
 
   </div>
 
   <script src="config.js"></script>
+  <script src="flow-shared.js"></script>
+  <script src="hostier-client-shared.js"></script>
+  <script src="auth-bundle-shared.js"></script>
+  <script src="connection-flow-shared.js"></script>
+  <script src="connection-runner-shared.js"></script>
+  <script src="popup-render-shared.js"></script>
+  <script src="popup-guard-shared.js"></script>
+  <script src="popup-flow-shared.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -20,6 +20,14 @@
   "reconnect": {
     "message": "다시 연결"
   },
+  "bulkReconnect": {
+    "message": "만료 계정 $1개 이어서 재연결",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
   "expired": {
     "message": "만료됨"
   },
@@ -32,11 +40,35 @@
   "refreshStatus": {
     "message": "다시 확인"
   },
+  "safeLogout": {
+    "message": "Safe Logout"
+  },
+  "safeLogoutStatus": {
+    "message": "Safe Logout을 진행하고 있습니다."
+  },
+  "safeLogoutComplete": {
+    "message": "Safe Logout이 완료되었습니다. 33m2에서 다음 계정으로 로그인해 주세요."
+  },
+  "safeLogoutCompleteNoTab": {
+    "message": "Safe Logout이 완료되었습니다."
+  },
+  "safeLogoutFailed": {
+    "message": "Safe Logout에 실패했습니다. 다시 시도해주세요."
+  },
+  "loginNow": {
+    "message": "로그인하기"
+  },
   "loadingConnections": {
     "message": "연결 상태를 불러오는 중입니다."
   },
+  "loadingPopup": {
+    "message": "연결 상태를 불러오고 있습니다."
+  },
   "loadingShort": {
     "message": "불러오는 중"
+  },
+  "cancel": {
+    "message": "취소"
   },
   "platformListTitle": {
     "message": "플랫폼 연결"
@@ -94,11 +126,25 @@
       }
     }
   },
+  "connectDisclosure33m2AddAccountBody": {
+    "message": "다른 계정 추가를 누르면 현재 33m2 로그인은 종료될 수 있습니다. 이후 연결할 계정으로 다시 로그인해 주세요."
+  },
+  "connectDisclosureBulkReconnectBody": {
+    "message": "남아 있는 만료된 $platform$ 계정을 순서 없이 다시 연결합니다. 현재 로그인된 계정이 남은 목록과 일치할 때만 해당 연결을 갱신하고, 새 연결은 만들지 않습니다.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
   "connectDisclosureCheckbox": {
     "message": "위 내용을 읽고 이 연결을 진행합니다."
   },
   "connectDisclosurePrimary": {
     "message": "연결 동의"
+  },
+  "continueAction": {
+    "message": "계속"
   },
   "addAnotherAccount": {
     "message": "다른 계정 추가"
@@ -163,6 +209,23 @@
       }
     }
   },
+  "signedInAsStatus": {
+    "message": "$platform$ 권한이 확인되었습니다. 현재 로그인 계정: $account$",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      },
+      "account": {
+        "content": "$2"
+      }
+    }
+  },
+  "preparingAccountSwitchStatus": {
+    "message": "현재 33m2 계정 연결을 확인하고 있습니다."
+  },
+  "loginNext33m2Account": {
+    "message": "이제 연결할 33m2 계정으로 다시 로그인해 주세요."
+  },
   "statusLoadFailed": {
     "message": "연결 상태를 불러오지 못했습니다. 다시 확인해주세요."
   },
@@ -176,6 +239,40 @@
   },
   "loginAndReturn33m2": {
     "message": "33m2에 로그인한 뒤, 로그인된 탭을 연 상태에서 확장으로 돌아와 다시 연결해주세요."
+  },
+  "awaitingSourceTitle": {
+    "message": "로그인이 필요합니다"
+  },
+  "awaitingSourceKicker": {
+    "message": "다시 연결"
+  },
+  "awaitingSourceHint": {
+    "message": "33m2에서 이 계정으로 로그인한 뒤 돌아와 주세요."
+  },
+  "awaitingSourceGenericTitle": {
+    "message": "다음 33m2 계정"
+  },
+  "awaitingSourceReconnectBody": {
+    "message": "$platform$에서 $account$ 계정으로 로그인한 뒤 확장으로 돌아와 주세요.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      },
+      "account": {
+        "content": "$2"
+      }
+    }
+  },
+  "awaitingSourceBulkReconnectBody": {
+    "message": "다음 재연결 대상은 $account$ 입니다. $platform$에서 이 계정으로 로그인한 뒤 확장으로 돌아와 주세요.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      },
+      "account": {
+        "content": "$2"
+      }
+    }
   },
   "missing33m2OpenTab": {
     "message": "로그인된 33m2 탭이 열려 있어야 연결할 수 있습니다."
@@ -194,8 +291,33 @@
   "detailReconnectHint": {
     "message": "다시 연결은 선택한 계정만 갱신합니다. 현재 로그인된 계정으로 새 연결을 만들려면 다른 계정 추가를 사용하세요."
   },
+  "detailBulkReconnectHint": {
+    "message": "만료 계정 이어서 재연결은 33m2 계정을 하나씩 로그인할 때마다 남은 만료 연결만 자동으로 갱신합니다."
+  },
+  "bulkReconnectWaiting": {
+    "message": "남은 만료 계정 $1개. 33m2에서 재연결할 계정으로 로그인하고 탭을 열어두면 자동으로 이어서 진행합니다.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "bulkReconnectMismatch": {
+    "message": "현재 로그인된 33m2 계정은 남은 만료 계정 목록에 없습니다."
+  },
+  "bulkReconnectComplete": {
+    "message": "$platform$ 만료 계정 재연결이 모두 완료되었습니다.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
   "reconnectMismatchHint": {
     "message": "현재 로그인된 계정으로 연결하려면 다른 계정 추가를 사용하세요."
+  },
+  "prepareAccountSwitchFailedHint": {
+    "message": "현재 로그인된 33m2 계정을 안전하게 확인하지 못해 다음 계정 로그인 단계로 넘어가지 않았습니다. 현재 로그인 상태를 다시 확인한 뒤 다시 시도해주세요."
   },
   "accountConnectedElsewhereHint": {
     "message": "같은 33m2 계정은 다른 Hostier 계정과 동시에 연결할 수 없습니다."

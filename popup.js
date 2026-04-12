@@ -6,13 +6,17 @@ function getExtensionConfig() {
   return config;
 }
 
+function isDevTarget() {
+  return getExtensionConfig().target === "dev";
+}
+
 const CONSENT_VERSION = "extension-consent-v1";
 const EXTENSION_TOKEN_STORAGE_KEY = "hostierExtensionToken";
 const CONNECTION_FLOW_STORAGE_KEY = "hostierConnectionFlowState";
 const HOSTIER_ORIGIN_STORAGE_KEY = "hostierPreferredOrigin";
 const DEFAULT_HOSTIER_URL = getExtensionConfig().hostierUrl.replace(/\/$/, "");
+const HOSTIER_REQUEST_TIMEOUT_MS = 15000;
 let localeMessages = null;
-let currentHostierUrl = DEFAULT_HOSTIER_URL;
 const connectionDateTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
   year: "numeric",
   month: "numeric",
@@ -27,88 +31,42 @@ const connectionDateFormatter = new Intl.DateTimeFormat("ko-KR", {
   day: "numeric",
 });
 
-function getAllowedHostierUrls() {
-  return [...new Set([DEFAULT_HOSTIER_URL, "http://localhost:5173"])];
-}
+const {
+  isReconnectRequired,
+  normalizeBulkReconnectPendingConnections,
+  validate33m2SessionInBrowser,
+  localLogout33m2,
+} = globalThis.HostierExtensionShared;
+const hostierClient = globalThis.HostierClientShared.createHostierClient({
+  chromeApi: chrome,
+  defaultHostierUrl: DEFAULT_HOSTIER_URL,
+  extensionTokenStorageKey: EXTENSION_TOKEN_STORAGE_KEY,
+  connectionFlowStorageKey: CONNECTION_FLOW_STORAGE_KEY,
+  hostierOriginStorageKey: HOSTIER_ORIGIN_STORAGE_KEY,
+  requestTimeoutMs: HOSTIER_REQUEST_TIMEOUT_MS,
+  logPrefix: "[hostier]",
+});
+const {
+  buildBaseFlow,
+  getBulkReconnectWaitingMessage,
+  getBulkReconnectMismatchMessage,
+  is33m2AddAccountFlow,
+} = globalThis.HostierConnectionFlowShared;
+const { createPlatformAuthBundleReader } = globalThis.HostierAuthBundleShared;
+const { createConnectionFlowRunner } = globalThis.HostierConnectionRunnerShared;
+const { createPopupRenderController } = globalThis.HostierPopupRenderShared;
+const { createPopupGuardController } = globalThis.HostierPopupGuardShared;
+const { createPopupFlowController } = globalThis.HostierPopupFlowShared;
 
-function isAllowedHostierUrl(value) {
-  if (!value) return false;
-
-  try {
-    const origin = new URL(value).origin;
-    return getAllowedHostierUrls().includes(origin);
-  } catch {
-    return false;
-  }
-}
-
-function getHostierUrl() {
-  return currentHostierUrl;
-}
-
-function getHostierLoginUrl() {
-  return `${getHostierUrl()}/login`;
-}
-
-function getPrivacyPolicyUrl() {
-  return `${getHostierUrl()}/privacy`;
-}
-
-async function getStoredHostierUrl() {
-  const stored = await chrome.storage.local.get(HOSTIER_ORIGIN_STORAGE_KEY);
-  const value = stored?.[HOSTIER_ORIGIN_STORAGE_KEY];
-  return isAllowedHostierUrl(value) ? value : null;
-}
-
-async function storeHostierUrl(url) {
-  if (!isAllowedHostierUrl(url)) {
-    return;
-  }
-
-  await chrome.storage.local.set({
-    [HOSTIER_ORIGIN_STORAGE_KEY]: new URL(url).origin,
-  });
-}
-
-async function findPreferredHostierTab(url) {
-  const normalizedUrl = new URL(url).origin;
-  const [activeTab] = await chrome.tabs.query({
-    active: true,
-    lastFocusedWindow: true,
-  });
-
-  if (activeTab?.url && activeTab.id && new URL(activeTab.url).origin === normalizedUrl) {
-    return activeTab;
-  }
-
-  const matchingTabs = await chrome.tabs.query({
-    url: `${normalizedUrl}/*`,
-  });
-
-  return matchingTabs.find((tab) => Number.isInteger(tab.id)) ?? null;
-}
-
-async function resolveHostierUrl() {
-  const [activeTab] = await chrome.tabs.query({
-    active: true,
-    lastFocusedWindow: true,
-  });
-
-  if (activeTab?.url && isAllowedHostierUrl(activeTab.url)) {
-    currentHostierUrl = new URL(activeTab.url).origin;
-    await storeHostierUrl(currentHostierUrl);
-    return currentHostierUrl;
-  }
-
-  const stored = await getStoredHostierUrl();
-  if (stored) {
-    currentHostierUrl = stored;
-    return currentHostierUrl;
-  }
-
-  currentHostierUrl = DEFAULT_HOSTIER_URL;
-  return currentHostierUrl;
-}
+const getHostierUrl = hostierClient.getHostierUrl;
+const getHostierLoginUrl = hostierClient.getHostierLoginUrl;
+const getPrivacyPolicyUrl = hostierClient.getPrivacyPolicyUrl;
+const resolveHostierUrl = hostierClient.resolveHostierUrl;
+const getStoredExtensionToken = hostierClient.getStoredExtensionToken;
+const storeExtensionToken = hostierClient.storeExtensionToken;
+const clearExtensionToken = hostierClient.clearExtensionToken;
+const getExtensionToken = hostierClient.getExtensionToken;
+const fetchHostier = hostierClient.fetchHostier;
 
 function interpolateMessage(template, placeholders = {}, substitutions = []) {
   let rendered = template;
@@ -193,9 +151,24 @@ const PLATFORM_CONFIGS = {
   },
 };
 
+const { readPlatformAuthBundleWithRetry } = createPlatformAuthBundleReader({
+  chromeApi: chrome,
+  platformConfigs: PLATFORM_CONFIGS,
+  msg,
+});
+const logout33m2 = (options = {}) => localLogout33m2(PLATFORM_CONFIGS.THIRTY_THREE_M2, options);
+
 const ui = {
   userEmail: document.getElementById("userEmail"),
   status: document.getElementById("status"),
+  awaitingView: document.getElementById("awaitingView"),
+  awaitingKicker: document.getElementById("awaitingKicker"),
+  awaitingTitle: document.getElementById("awaitingTitle"),
+  awaitingBody: document.getElementById("awaitingBody"),
+  awaitingPrimary: document.getElementById("awaitingPrimary"),
+  awaitingSecondary: document.getElementById("awaitingSecondary"),
+  loadingView: document.getElementById("loadingView"),
+  loadingText: document.getElementById("loadingText"),
   openWebsite: document.getElementById("openWebsite"),
   privacyLink: document.getElementById("privacyLink"),
   guard: document.getElementById("guard"),
@@ -216,6 +189,8 @@ const ui = {
   detailTitle: document.getElementById("detailTitle"),
   detailSummary: document.getElementById("detailSummary"),
   accountsList: document.getElementById("accountsList"),
+  detailBulkReconnect: document.getElementById("detailBulkReconnect"),
+  detailSafeLogout: document.getElementById("detailSafeLogout"),
   detailAddAccount: document.getElementById("detailAddAccount"),
 };
 
@@ -223,18 +198,15 @@ let currentSession = null;
 let currentPlatform = null;
 let resumeInFlight = false;
 let statusLoadState = "idle";
+let activeAwaitingSourceFlow = null;
+let blockingFlowMessage = null;
+let awaitingSourcePollTimer = null;
+let awaitingSourcePollInFlight = false;
+let guardActive = false;
 const connectionsByPlatform = new Map();
 
 function openUrl(url) {
   chrome.tabs.create({ url });
-}
-
-async function requestBackgroundConnectionContinuation() {
-  try {
-    await chrome.runtime.sendMessage({ type: "HOSTIER_CONTINUE_CONNECTION_FLOW" });
-  } catch (error) {
-    console.warn("[hostier] Failed to request background connection continuation:", error);
-  }
 }
 
 function setHeaderState({ email = "", showWebsiteLink = true } = {}) {
@@ -255,60 +227,38 @@ function clearStatus() {
   ui.status.textContent = "";
 }
 
-function setGuardState({
-  title,
-  body,
-  items = [],
-  checkboxLabel,
-  primaryLabel,
-  primaryAction,
-  primaryDisabled = false,
-  secondaryLabel,
-  secondaryAction,
-}) {
-  document.body.classList.add("guard-active");
-  ui.guard.hidden = false;
-  ui.guardTitle.textContent = title;
-  ui.guardBody.textContent = body;
-
-  ui.guardList.hidden = items.length === 0;
-  ui.guardList.textContent = "";
-  for (const item of items) {
-    const li = document.createElement("li");
-    li.textContent = item;
-    ui.guardList.append(li);
-  }
-
-  const showCheckbox = Boolean(checkboxLabel);
-  ui.guardCheckWrap.hidden = !showCheckbox;
-  ui.guardCheckbox.checked = false;
-  ui.guardCheckboxLabel.textContent = checkboxLabel || "";
-
-  ui.guardPrimary.textContent = primaryLabel;
-  ui.guardPrimary.disabled = primaryDisabled;
-  ui.guardPrimary.onclick = primaryAction;
-
-  if (secondaryLabel) {
-    ui.guardSecondary.hidden = false;
-    ui.guardSecondary.textContent = secondaryLabel;
-    ui.guardSecondary.onclick = secondaryAction;
-  } else {
-    ui.guardSecondary.hidden = true;
-    ui.guardSecondary.onclick = null;
-  }
+function clearAwaitingSourceView() {
+  activeAwaitingSourceFlow = null;
+  stopAwaitingSourcePoll();
+  awaitingSourcePollInFlight = false;
+  ui.awaitingView.hidden = true;
+  ui.awaitingKicker.textContent = "";
+  ui.awaitingTitle.textContent = "";
+  ui.awaitingBody.textContent = "";
+  ui.awaitingPrimary.onclick = null;
+  ui.awaitingSecondary.onclick = null;
 }
 
-function clearGuardState() {
-  document.body.classList.remove("guard-active");
-  ui.guard.hidden = true;
-  ui.guardList.hidden = true;
-  ui.guardList.textContent = "";
-  ui.guardCheckbox.checked = false;
-  ui.guardCheckbox.onchange = null;
+function showBlockingLoading(message) {
+  blockingFlowMessage = message;
+  clearStatus();
+  renderViews();
 }
 
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function clearBlockingLoading() {
+  if (!blockingFlowMessage) {
+    return;
+  }
+
+  blockingFlowMessage = null;
+  renderViews();
+}
+
+function stopAwaitingSourcePoll() {
+  if (awaitingSourcePollTimer) {
+    clearTimeout(awaitingSourcePollTimer);
+    awaitingSourcePollTimer = null;
+  }
 }
 
 function getConnections(platform) {
@@ -319,463 +269,99 @@ function isStatusLoading() {
   return statusLoadState === "loading";
 }
 
-function isReconnectRequired(connection) {
-  return (
-    connection.status === "EXPIRED"
-    || connection.status === "ERROR"
-    || connection.requiresReauth
-  );
-}
-
-function formatConnectionDateTime(value) {
-  return connectionDateTimeFormatter.format(new Date(value));
-}
-
-function formatConnectionDate(value) {
-  return connectionDateFormatter.format(new Date(value));
-}
-
-function getConnectionMeta(connection) {
-  const parts = [];
-  if (connection.lastSyncedAt) {
-    parts.push(`업데이트 ${formatConnectionDateTime(connection.lastSyncedAt)}`);
-  }
-  if (connection.tokenExpiresAt) {
-    parts.push(`만료 ${formatConnectionDate(connection.tokenExpiresAt)}`);
-  }
-  if (!isReconnectRequired(connection)) {
-    if (connection.autoMaintainEnabled) {
-      parts.push("자동 유지");
-    } else {
-      parts.push(msg("manualReconnectOnly"));
-    }
-  }
-  return parts.join(" · ");
-}
-
-function getListSummary(platform) {
-  if (isStatusLoading()) {
-    return msg("loadingConnections");
-  }
-
-  const connections = getConnections(platform);
-  if (connections.length === 0) {
-    return "연결된 계정이 없습니다.";
-  }
-
-  if (connections.length === 1) {
-    const connection = connections[0];
-    return isReconnectRequired(connection)
-      ? `${connection.displayLabel} · ${msg("expired")}`
-      : connection.displayLabel;
-  }
-
-  const activeCount = connections.filter((connection) => connection.status === "ACTIVE").length;
-  const expiredCount = connections.filter((connection) => isReconnectRequired(connection)).length;
-  const parts = [`연결된 계정 ${connections.length}개`];
-  if (activeCount > 0) {
-    parts.push(`활성 ${activeCount}`);
-  }
-  if (expiredCount > 0) {
-    parts.push(`만료 ${expiredCount}`);
-  }
-  return parts.join(" · ");
-}
-
-function getListStateClass(platform) {
-  if (isStatusLoading()) {
-    return "loading";
-  }
-
-  const connections = getConnections(platform);
-  if (connections.some((connection) => connection.status === "ACTIVE")) {
-    return "connected";
-  }
-  if (connections.some((connection) => isReconnectRequired(connection))) {
-    return "expired";
-  }
-  return "idle";
-}
-
-function hasExistingConnections(platform) {
-  return getConnections(platform).length > 0;
-}
-
-function setCurrentPlatform(platform) {
-  currentPlatform = platform;
-  renderViews();
-}
-
-function renderPlatformList() {
-  ui.platformList.textContent = "";
-
-  for (const [platform, config] of Object.entries(PLATFORM_CONFIGS)) {
-    const hasConnections = hasExistingConnections(platform);
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = "platform-row";
-    row.disabled = isStatusLoading();
-    row.onclick = () => {
-      if (hasConnections) {
-        setCurrentPlatform(platform);
-        return;
-      }
-
-      showDisclosure(platform, { showDetailView: false });
-    };
-
-    const state = document.createElement("span");
-    state.className = `state-dot ${getListStateClass(platform)}`;
-    row.append(state);
-
-    const body = document.createElement("div");
-    body.className = "platform-body";
-
-    const name = document.createElement("div");
-    name.className = "platform-name";
-    name.textContent = config.label;
-    body.append(name);
-
-    const summary = document.createElement("div");
-    summary.className = "platform-summary";
-    summary.textContent = getListSummary(platform);
-    body.append(summary);
-
-    row.append(body);
-
-    const action = document.createElement("span");
-    action.className = "platform-action";
-    action.textContent = isStatusLoading()
-      ? msg("loadingShort")
-      : hasConnections
-        ? "관리"
-        : msg("connect");
-    row.append(action);
-
-    ui.platformList.append(row);
-  }
-}
-
-function renderDetailView() {
-  if (!currentPlatform) {
-    ui.detailView.hidden = true;
-    ui.listView.hidden = false;
-    return;
-  }
-
-  const config = PLATFORM_CONFIGS[currentPlatform];
-  const connections = getConnections(currentPlatform);
-  ui.listView.hidden = true;
-  ui.detailView.hidden = false;
-  ui.detailTitle.textContent = config.label;
-  ui.detailSummary.hidden = currentPlatform !== "THIRTY_THREE_M2" || connections.length === 0;
-  ui.detailSummary.textContent =
-    currentPlatform === "THIRTY_THREE_M2" && connections.length > 0
-      ? msg("detailReconnectHint")
-      : "";
-  ui.detailAddAccount.textContent =
-    connections.length > 0 ? msg("addAnotherAccount") : msg("connect");
-
-  ui.accountsList.textContent = "";
-  ui.accountsList.hidden = connections.length === 0;
-
-  if (connections.length === 0) {
-    return;
-  }
-
-  for (const connection of connections) {
-    const row = document.createElement("div");
-    row.className = "account-row";
-
-    const body = document.createElement("div");
-    body.className = "account-body";
-
-    const head = document.createElement("div");
-    head.className = "account-head";
-
-    const label = document.createElement("div");
-    label.className = "account-label";
-    label.textContent = connection.displayLabel;
-    head.append(label);
-
-    const state = document.createElement("div");
-    state.className = `account-state ${connection.status === "ACTIVE" ? "connected" : isReconnectRequired(connection) ? "expired" : "idle"}`;
-    state.textContent =
-      connection.status === "ACTIVE"
-        ? msg("connected")
-        : isReconnectRequired(connection)
-          ? msg("expired")
-          : "연결 안됨";
-    head.append(state);
-
-    body.append(head);
-
-    const meta = document.createElement("div");
-    meta.className = "account-meta";
-    meta.textContent = getConnectionMeta(connection);
-    body.append(meta);
-    row.append(body);
-
-    const actions = document.createElement("div");
-    actions.className = "account-actions";
-
-    if (isReconnectRequired(connection)) {
-      const reconnectButton = document.createElement("button");
-      reconnectButton.type = "button";
-      reconnectButton.className = "text-action primary";
-      reconnectButton.textContent = msg("reconnect");
-      reconnectButton.onclick = () => {
-        showDisclosure(currentPlatform, {
-          connectionId: connection.id,
-          displayLabel: connection.displayLabel,
-          showDetailView: true,
-        });
-      };
-      actions.append(reconnectButton);
-    }
-
-    const disconnectButton = document.createElement("button");
-    disconnectButton.type = "button";
-    disconnectButton.className = "text-action";
-    disconnectButton.textContent = "해제";
-    disconnectButton.onclick = () => {
-      void disconnectConnection(currentPlatform, connection);
-    };
-    actions.append(disconnectButton);
-    row.append(actions);
-
-    ui.accountsList.append(row);
-  }
-}
-
-function renderViews() {
-  renderPlatformList();
-  renderDetailView();
-}
-
-async function getStoredExtensionToken() {
-  const stored = await chrome.storage.local.get(EXTENSION_TOKEN_STORAGE_KEY);
-  const tokenState = stored?.[EXTENSION_TOKEN_STORAGE_KEY];
-  if (!tokenState?.token || !tokenState?.expiresAt) {
-    return null;
-  }
-
-  if (Date.now() >= tokenState.expiresAt) {
-    await chrome.storage.local.remove(EXTENSION_TOKEN_STORAGE_KEY);
-    return null;
-  }
-
-  return tokenState.token;
-}
-
-async function storeExtensionToken(token, expiresInSeconds) {
-  await chrome.storage.local.set({
-    [EXTENSION_TOKEN_STORAGE_KEY]: {
-      token,
-      expiresAt: Date.now() + Math.max(0, expiresInSeconds - 30) * 1000,
-    },
-  });
-}
-
-async function clearExtensionToken() {
-  await chrome.storage.local.remove(EXTENSION_TOKEN_STORAGE_KEY);
-}
-
-async function exchangeExtensionTokenFromTab(hostierUrl) {
-  const tab = await findPreferredHostierTab(hostierUrl);
-  if (!tab?.id) {
-    return null;
-  }
-
-  try {
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      args: [hostierUrl],
-      func: async (baseUrl) => {
-        try {
-          const response = await fetch(`${baseUrl}/api/auth/extension/exchange`, {
-            method: "POST",
-            credentials: "include",
-          });
-          if (!response.ok) {
-            return { ok: false, status: response.status };
-          }
-
-          const body = await response.json().catch(() => null);
-          return { ok: true, body };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          };
-        }
-      },
-    });
-
-    if (!result?.result?.ok) {
-      return null;
-    }
-
-    return result.result.body ?? null;
-  } catch (error) {
-    console.error("[hostier] Failed to exchange extension token via tab:", error);
-    return null;
-  }
-}
-
-async function exchangeExtensionToken() {
-  const hostierUrl = await resolveHostierUrl();
-  const tabBody = await exchangeExtensionTokenFromTab(hostierUrl);
-  if (tabBody?.token && typeof tabBody.expiresInSeconds === "number") {
-    await storeExtensionToken(tabBody.token, tabBody.expiresInSeconds);
-    return tabBody.token;
-  }
-
-  const response = await fetch(`${hostierUrl}/api/auth/extension/exchange`, {
-    method: "POST",
-    credentials: "include",
-  });
-
-  if (!response.ok) {
-    await clearExtensionToken();
-    return null;
-  }
-
-  const body = await response.json().catch(() => null);
-  if (!body?.token || typeof body.expiresInSeconds !== "number") {
-    await clearExtensionToken();
-    return null;
-  }
-
-  await storeExtensionToken(body.token, body.expiresInSeconds);
-  return body.token;
-}
-
-async function getExtensionToken({ forceRefresh = false } = {}) {
-  if (!forceRefresh) {
-    const cached = await getStoredExtensionToken();
-    if (cached) {
-      return cached;
-    }
-  }
-
-  return exchangeExtensionToken();
-}
-
-async function fetchHostier(path, options = {}) {
-  const hostierUrl = await resolveHostierUrl();
-  let token = await getExtensionToken();
-  const headers = new Headers(options.headers || {});
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  let response = await fetch(`${hostierUrl}${path}`, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
-
-  if (response.status !== 401) {
-    return response;
-  }
-
-  await clearExtensionToken();
-  token = await getExtensionToken({ forceRefresh: true });
-  if (!token) {
-    return response;
-  }
-
-  headers.set("Authorization", `Bearer ${token}`);
-  response = await fetch(`${hostierUrl}${path}`, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
-
-  return response;
-}
-
-async function getConnectionFlowState() {
-  const stored = await chrome.storage.local.get(CONNECTION_FLOW_STORAGE_KEY);
-  return stored?.[CONNECTION_FLOW_STORAGE_KEY] || null;
-}
-
-async function setConnectionFlowState(state) {
-  await chrome.storage.local.set({
-    [CONNECTION_FLOW_STORAGE_KEY]: {
-      ...state,
-      updatedAt: Date.now(),
-    },
-  });
-}
-
-async function clearConnectionFlowState() {
-  await chrome.storage.local.remove(CONNECTION_FLOW_STORAGE_KEY);
-}
-
-function showLoginGate() {
-  statusLoadState = "idle";
-  clearStatus();
-  setHeaderState({
-    email: "",
-    showWebsiteLink: false,
-  });
-  setGuardState({
-    title: msg("loginGateTitle"),
-    body: msg("loginGateBody"),
-    primaryLabel: msg("loginGatePrimary"),
-    primaryAction: () => openUrl(getHostierLoginUrl()),
-    secondaryLabel: msg("refreshStatus"),
-    secondaryAction: () => {
-      void initializePopup();
-    },
-  });
-}
-
-function showDisclosure(platform, options = {}) {
-  const config = PLATFORM_CONFIGS[platform];
-  const accountLabel = typeof options.displayLabel === "string" ? options.displayLabel : "";
-  clearStatus();
+function showAwaitingSourcePrompt(flow) {
+  clearBlockingLoading();
+  activeAwaitingSourceFlow = flow;
   setHeaderState({
     email: currentSession?.user?.email || "",
     showWebsiteLink: false,
   });
-  setGuardState({
-    title: msg("connectDisclosureTitle", [config.label]),
-    body: options.connectionId
-      ? msg("connectDisclosureReconnectBody", [accountLabel, config.label])
-      : hasExistingConnections(platform)
-        ? msg("connectDisclosureAddAccountBody", [config.label])
-        : msg("connectDisclosureBody", [config.label]),
-    items: [
-      msg("disclosureReadsAuth", [config.label]),
-      msg("disclosureTransfersToHostier"),
-      msg("disclosureEncryptedStorage"),
-      config.autoMaintainEnabled
-        ? msg("disclosure33m2AutoMaintain")
-        : msg("disclosureManualReconnect"),
-      config.autoMaintainEnabled
-        ? msg("disclosure33m2OpenTab")
-        : msg("disclosureDisconnectDeletes"),
-    ],
-    checkboxLabel: msg("connectDisclosureCheckbox"),
-    primaryLabel:
-      options.connectionId ? msg("reconnect") : msg("connectDisclosurePrimary"),
-    primaryAction: () => {
-      void connectPlatform(platform, options);
-    },
-    primaryDisabled: true,
-    secondaryLabel: msg("back"),
-    secondaryAction: async () => {
-      clearGuardState();
-      await loadStatus();
-    },
-  });
+  renderViews();
+}
 
-  ui.guardCheckbox.onchange = () => {
-    ui.guardPrimary.disabled = !ui.guardCheckbox.checked;
+function scheduleAwaitingSourcePoll() {
+  if (awaitingSourcePollTimer) {
+    clearTimeout(awaitingSourcePollTimer);
+  }
+
+  awaitingSourcePollTimer = setTimeout(async () => {
+    if (
+      !activeAwaitingSourceFlow
+      || awaitingSourcePollInFlight
+      || resumeInFlight
+      || blockingFlowMessage
+      || guardActive
+    ) {
+      scheduleAwaitingSourcePoll();
+      return;
+    }
+
+    awaitingSourcePollInFlight = true;
+    try {
+      const flow = activeAwaitingSourceFlow;
+      const authBundle = await readPlatformAuthBundleWithRetry(flow.platform, {
+        allowMissingRefreshToken: Boolean(flow.connectionId || flow.bulkReconnect),
+      });
+      if (authBundle?.ok) {
+        await connectPlatform(flow.platform, {
+          connectionId: flow.connectionId || undefined,
+          accountKey: flow.targetAccountKey || undefined,
+          showDetailView: flow.showDetailView !== false,
+          bulkReconnect: flow.bulkReconnect === true,
+          pendingConnections: flow.pendingConnections,
+          displayLabel: flow.targetDisplayLabel,
+          sourceAutoOpenedAt: flow.sourceAutoOpenedAt,
+        });
+        return;
+      }
+    } catch (error) {
+      console.warn("[hostier] Awaiting-source poll failed:", error);
+    } finally {
+      awaitingSourcePollInFlight = false;
+    }
+
+    if (activeAwaitingSourceFlow) {
+      scheduleAwaitingSourcePoll();
+    }
+  }, 1200);
+}
+
+async function enterAwaitingSourceState(flow, {
+  sourceUrl = null,
+  message,
+  targetDisplayLabel = null,
+} = {}) {
+  const shouldAutoOpen = Boolean(sourceUrl) && !flow.sourceAutoOpenedAt;
+  const nextFlow = {
+    ...flow,
+    step: "awaiting_source",
+    openUrl: sourceUrl,
+    message,
+    targetDisplayLabel: targetDisplayLabel ?? flow.targetDisplayLabel ?? null,
+    sourceAutoOpenedAt: shouldAutoOpen
+      ? Date.now()
+      : flow.sourceAutoOpenedAt ?? null,
   };
+
+  await setConnectionFlowState(nextFlow);
+
+  if (shouldAutoOpen && sourceUrl) {
+    openUrl(sourceUrl);
+  }
+
+  return nextFlow;
+}
+
+async function getConnectionFlowState() {
+  return hostierClient.getConnectionFlowState();
+}
+
+async function setConnectionFlowState(state) {
+  await hostierClient.setConnectionFlowState(state);
+}
+
+async function clearConnectionFlowState() {
+  await hostierClient.clearConnectionFlowState();
 }
 
 function formatConnectionError(platform, options = {}, errorBody = null) {
@@ -785,6 +371,12 @@ function formatConnectionError(platform, options = {}, errorBody = null) {
   switch (errorBody?.code) {
     case "RECONNECT_ACCOUNT_MISMATCH":
       return `${baseMessage} ${msg("reconnectMismatchHint")}`;
+    case "PREPARE_ACCOUNT_SWITCH_FAILED":
+      return `${baseMessage} ${msg("prepareAccountSwitchFailedHint")}`;
+    case "MATCHING_CONNECTION_NOT_FOUND":
+      return options.bulkReconnect
+        ? getBulkReconnectMismatchMessage(msg, options.pendingConnections)
+        : baseMessage;
     case "ACCOUNT_CONNECTED_TO_ANOTHER_USER":
       return `${baseMessage} ${msg("accountConnectedElsewhereHint")}`;
     case "ALREADY_CONNECTED_ACCOUNT":
@@ -794,435 +386,201 @@ function formatConnectionError(platform, options = {}, errorBody = null) {
   }
 }
 
-function hasPlatformPermission(config) {
-  return new Promise((resolve) => {
-    chrome.permissions.contains({ origins: [config.origin] }, (granted) => {
-      resolve(Boolean(granted));
-    });
-  });
-}
-
-async function ensurePlatformPermission(config) {
-  if (await hasPlatformPermission(config)) {
-    return true;
-  }
-
-  return new Promise((resolve) => {
-    chrome.permissions.request({ origins: [config.origin] }, async (granted) => {
-      resolve(Boolean(granted) && await hasPlatformPermission(config));
-    });
-  });
-}
-
-async function getFirebaseRefreshToken(tabId) {
-  try {
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        return new Promise((resolve) => {
-          const req = indexedDB.open("firebaseLocalStorageDb");
-          req.onsuccess = () => {
-            const db = req.result;
-            const tx = db.transaction("firebaseLocalStorage", "readonly");
-            const store = tx.objectStore("firebaseLocalStorage");
-            const getAll = store.getAll();
-            getAll.onsuccess = () => {
-              const extractRefreshToken = (entry) => {
-                const candidates = [
-                  entry?.value?.stsTokenManager?.refreshToken,
-                  entry?.value?.user?.stsTokenManager?.refreshToken,
-                  entry?.value?.spipiRefreshToken,
-                  entry?.value?.refreshToken,
-                  entry?.stsTokenManager?.refreshToken,
-                ];
-
-                return (
-                  candidates.find(
-                    (candidate) =>
-                      typeof candidate === "string"
-                      && candidate.length > 0
-                      && candidate.split(".").length !== 3,
-                  ) || null
-                );
-              };
-
-              const token = getAll.result.map(extractRefreshToken).find(Boolean);
-              resolve(token || null);
-            };
-            getAll.onerror = () => resolve(null);
-          };
-          req.onerror = () => resolve(null);
-        });
-      },
-    });
-
-    return result?.result || null;
-  } catch (e) {
-    console.log("[hostier] Failed to read Firebase refresh token:", e);
-    return null;
-  }
-}
-
-async function readPlatformAuthBundle(platform) {
-  const config = PLATFORM_CONFIGS[platform];
-  const cookie = await chrome.cookies.get({
-    url: config.url,
-    name: config.name,
-  });
-
-  if (!cookie?.value) {
-    return {
-      ok: false,
-      error: msg(
-        platform === "THIRTY_THREE_M2" ? "loginAndReturn33m2" : "loginAndReturn",
-        [config.label],
-      ),
-      openUrl: config.loginUrl,
-    };
-  }
-
-  const tokenExpiresAt = cookie.expirationDate
-    ? new Date(cookie.expirationDate * 1000).toISOString()
-    : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
-
-  if (platform !== "THIRTY_THREE_M2") {
-    return {
-      ok: true,
-      token: cookie.value,
-      tokenExpiresAt,
-      refreshToken: null,
-      firebaseSessionToken: null,
-    };
-  }
-
-  const [tab] = await chrome.tabs.query({ url: "https://web.33m2.co.kr/*" });
-  if (!tab?.id) {
-    return {
-      ok: false,
-      error: msg("missing33m2OpenTab"),
-      openUrl: config.homeUrl || config.url,
-    };
-  }
-
-  const refreshToken = await getFirebaseRefreshToken(tab.id);
-  if (!refreshToken) {
-    return {
-      ok: false,
-      error: msg("missing33m2RefreshToken"),
-      openUrl: config.homeUrl || config.url,
-    };
-  }
-
-  const firebaseSessionCookie = await chrome.cookies.get({
-    url: config.url,
-    name: config.firebaseSessionName,
-  });
-
-  return {
-    ok: true,
-    token: cookie.value,
-    tokenExpiresAt,
-    refreshToken,
-    firebaseSessionToken: firebaseSessionCookie?.value || null,
-  };
-}
-
-async function readPlatformAuthBundleWithRetry(platform) {
-  let lastResult = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    lastResult = await readPlatformAuthBundle(platform);
-    if (lastResult.ok) {
-      return lastResult;
-    }
-
-    if (lastResult.openUrl) {
-      return lastResult;
-    }
-
-    await delay(350 * (attempt + 1));
-  }
-  return lastResult;
-}
-
-async function disconnectConnection(platform, connection) {
-  if (!window.confirm(`"${connection.displayLabel}" 연결을 해제할까요?`)) {
-    return;
-  }
-
-  try {
-    const response = await fetchHostier(
-      `/api/platform-connections/${encodeURIComponent(connection.id)}`,
-      { method: "DELETE" },
-    );
-
-    if (response.status === 401) {
-      showLoginGate();
-      return;
-    }
-
-    if (!response.ok) {
-      throw new Error("disconnect failed");
-    }
-
-    await loadStatus();
-    showStatus("success", `${PLATFORM_CONFIGS[platform].label} 계정 연결을 해제했습니다.`);
-  } catch (error) {
-    console.error("[hostier] disconnect failed:", error);
-    showStatus("error", "연결 해제에 실패했습니다.");
-  }
-}
-
-async function connectPlatform(platform, options = {}) {
-  const config = PLATFORM_CONFIGS[platform];
-  clearGuardState();
-  setHeaderState({
-    email: currentSession?.user?.email || "",
-    showWebsiteLink: true,
-  });
-  const showDetailView = options.showDetailView !== false;
-  if (showDetailView) {
-    setCurrentPlatform(platform);
-  }
-
-  const baseFlow = {
-    platform,
-    connectionId: options.connectionId ?? null,
-    showDetailView,
-  };
-
-  try {
-    const alreadyGranted = await hasPlatformPermission(config);
-    if (!alreadyGranted) {
-      await setConnectionFlowState({
-        ...baseFlow,
-        step: "permission_requested",
-        message: `${config.label} 권한을 확인하고 있습니다.`,
-      });
-      showStatus("info", `${config.label} 권한을 확인하고 있습니다.`);
-
-      const granted = await ensurePlatformPermission(config);
-      if (!granted) {
-        const message = msg("permissionDenied", [config.label]);
-        await setConnectionFlowState({ ...baseFlow, step: "error", message });
-        showStatus("error", message);
-        return;
-      }
-
-      const message = msg("connectingStatus", [config.label]);
-      await setConnectionFlowState({
-        ...baseFlow,
-        step: "permission_granted",
-        message,
-      });
-      showStatus("info", message);
-      await requestBackgroundConnectionContinuation();
-      return;
-    }
-
-    await setConnectionFlowState({
-      ...baseFlow,
-      step: "permission_granted",
-      message: `${config.label} 권한이 확인되었습니다.`,
-    });
-
-    const authBundle = await readPlatformAuthBundleWithRetry(platform);
-    if (!authBundle?.ok) {
-      if (authBundle?.openUrl) {
-        await chrome.tabs.create({ url: authBundle.openUrl });
-      }
-
-      const message = authBundle?.error || msg("connectionFailed", [config.label]);
-      await setConnectionFlowState({
-        ...baseFlow,
-        step: "awaiting_source",
-        openUrl: authBundle?.openUrl || null,
-        message,
-      });
-      showStatus("error", message);
-      await loadStatus();
-      return;
-    }
-
-    await setConnectionFlowState({
-      ...baseFlow,
-      step: "saving_connection",
-      message: msg("connectingStatus", [config.label]),
-    });
-    showStatus("info", msg("connectingStatus", [config.label]));
-
-    const response = await fetchHostier("/api/platform-connections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        connectionId: options.connectionId ?? undefined,
-        platform,
-        token: authBundle.token,
-        refreshToken: authBundle.refreshToken,
-        firebaseSessionToken: authBundle.firebaseSessionToken,
-        tokenExpiresAt: authBundle.tokenExpiresAt,
-        autoMaintainEnabled: config.autoMaintainEnabled,
-        consentVersion: CONSENT_VERSION,
-        consentedAt: new Date().toISOString(),
-      }),
-    });
-
-    if (response.status === 401) {
-      showLoginGate();
-      return;
-    }
-
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => null);
-      const message = formatConnectionError(platform, options, errorBody);
-      await setConnectionFlowState({ ...baseFlow, step: "error", message });
-      showStatus("error", message);
-      return;
-    }
-
-    await loadStatus();
-    const successMessage = msg("connectionComplete", [config.label]);
-    await setConnectionFlowState({
-      ...baseFlow,
-      step: "success",
-      message: successMessage,
-    });
-    showStatus("success", successMessage);
-    await clearConnectionFlowState();
-  } catch (e) {
-    console.error("[hostier] Platform connection failed:", e);
-    const message = msg("connectionFailed", [config.label]);
-    await setConnectionFlowState({ ...baseFlow, step: "error", message });
-    showStatus("error", message);
-  } finally {
-    renderViews();
-  }
-}
-
-async function resumeConnectionFlowIfNeeded() {
-  if (resumeInFlight) {
-    return;
-  }
-
-  const flow = await getConnectionFlowState();
-  if (!flow?.platform) {
-    return;
-  }
-
-  if (Date.now() - Number(flow.updatedAt || 0) > 10 * 60 * 1000) {
-    await clearConnectionFlowState();
-    return;
-  }
-
-  if (flow.showDetailView !== false) {
-    setCurrentPlatform(flow.platform);
-  }
-
-  if (flow.step === "success") {
-    showStatus("success", flow.message || "연결이 완료되었습니다.");
-    await clearConnectionFlowState();
-    return;
-  }
-
-  if (flow.step === "error") {
-    showStatus("error", flow.message || "연결에 실패했습니다.");
-    return;
-  }
-
-  if (
-    flow.step === "permission_requested"
-    || flow.step === "permission_granted"
-    || flow.step === "background_resuming"
-    || flow.step === "saving_connection"
-  ) {
-    showStatus("info", flow.message || "연결을 진행하고 있습니다.");
-    await requestBackgroundConnectionContinuation();
-    return;
-  }
-
-  resumeInFlight = true;
-  try {
-    await connectPlatform(flow.platform, {
-      connectionId: flow.connectionId || undefined,
-      showDetailView: flow.showDetailView !== false,
-    });
-  } finally {
-    resumeInFlight = false;
-  }
-}
-
-async function loadStatus() {
-  try {
-    statusLoadState = "loading";
-    renderViews();
-    const res = await fetchHostier("/api/platform-connections");
-
-    if (!res.ok) {
-      if (res.status === 401) {
-        statusLoadState = "idle";
-        showLoginGate();
-        return;
-      }
-      statusLoadState = "error";
-      return;
-    }
-
-    const data = await res.json();
-    currentSession = {
-      user: {
-        email: data.userEmail || null,
-      },
-    };
-    setHeaderState({
-      email: data.userEmail || "",
-      showWebsiteLink: true,
-    });
-
+const popupDeps = {
+  chrome,
+  document,
+  window,
+  ui,
+  msg,
+  platformConfigs: PLATFORM_CONFIGS,
+  connectionDateTimeFormatter,
+  connectionDateFormatter,
+  normalizeBulkReconnectPendingConnections,
+  isReconnectRequired,
+  is33m2AddAccountFlow,
+  buildBaseFlow,
+  getBulkReconnectWaitingMessage,
+  getHostierLoginUrl,
+  getExtensionToken,
+  fetchHostier,
+  validate33m2SessionInBrowser,
+  localLogout33m2,
+  openUrl,
+  setHeaderState,
+  clearStatus,
+  showStatus,
+  clearAwaitingSourceView,
+  showAwaitingSourcePrompt,
+  showBlockingLoading,
+  clearBlockingLoading,
+  getConnectionFlowState,
+  setConnectionFlowState,
+  clearConnectionFlowState,
+  readPlatformAuthBundleWithRetry,
+  enterAwaitingSourceState,
+  formatConnectionError,
+  getConnections,
+  isStatusLoading,
+  getCurrentSession: () => currentSession,
+  setCurrentSession: (value) => { currentSession = value; },
+  getCurrentPlatform: () => currentPlatform,
+  setCurrentPlatform: (value) => {
+    currentPlatform = value;
+    popupDeps.renderViews();
+  },
+  getResumeInFlight: () => resumeInFlight,
+  setResumeInFlight: (value) => { resumeInFlight = value; },
+  getStatusLoadState: () => statusLoadState,
+  setStatusLoadState: (value) => { statusLoadState = value; },
+  getActiveAwaitingSourceFlow: () => activeAwaitingSourceFlow,
+  getBlockingFlowMessage: () => blockingFlowMessage,
+  getGuardActive: () => guardActive,
+  setGuardActive: (value) => { guardActive = value; },
+  scheduleAwaitingSourcePoll,
+  stopAwaitingSourcePoll,
+  confirm: (message) => window.confirm(message),
+  resetConnectionsByPlatform: (platforms) => {
     connectionsByPlatform.clear();
-    for (const platform of Object.keys(PLATFORM_CONFIGS)) {
+    for (const platform of platforms) {
       connectionsByPlatform.set(platform, []);
     }
-
-    for (const connection of data.connections ?? []) {
-      const list = connectionsByPlatform.get(connection.platform) ?? [];
-      list.push(connection);
-      connectionsByPlatform.set(connection.platform, list);
+  },
+  pushConnection: (platform, connection) => {
+    const list = connectionsByPlatform.get(platform) ?? [];
+    list.push(connection);
+    connectionsByPlatform.set(platform, list);
+  },
+  describeError: (error, fallbackMessage) => {
+    if (!isDevTarget()) {
+      return fallbackMessage;
     }
+    const message =
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : String(error);
+    return `${fallbackMessage} (${message})`;
+  },
+  onAuthBundleMissing: async (nextFlow) => {
+    popupDeps.clearStatus();
+    popupDeps.showAwaitingSourcePrompt(nextFlow);
+  },
+  onAwaiting: async (nextFlow, options = {}) => {
+    if (options.clearStatus) {
+      popupDeps.clearStatus();
+    }
+    if (options.clearBlocking) {
+      popupDeps.clearBlockingLoading();
+    }
+    popupDeps.showAwaitingSourcePrompt(nextFlow);
+  },
+  beforeCycle: async () => {},
+  onBlocking: async (message) => {
+    popupDeps.showBlockingLoading(message);
+  },
+  onError: async (message, options = {}) => {
+    if (options.clearBlocking) {
+      popupDeps.clearBlockingLoading();
+    }
+    if (options.clearPrompt) {
+      popupDeps.clearAwaitingSourceView();
+    }
+    popupDeps.showStatus("error", message);
+  },
+  afterSuccessfulSave: async () => {
+    await popupDeps.loadStatus();
+  },
+  onSuccess: async (message, options = {}) => {
+    if (options.clearBlocking) {
+      popupDeps.clearBlockingLoading();
+    }
+    if (options.clearPrompt) {
+      popupDeps.clearAwaitingSourceView();
+    }
+    popupDeps.showStatus("success", message);
+    if (options.clearFlow) {
+      await popupDeps.clearConnectionFlowState();
+    }
+  },
+};
 
-    statusLoadState = "ready";
-    clearGuardState();
-    renderViews();
-  } catch (e) {
-    statusLoadState = "error";
-    console.error("[hostier] Failed to load status:", e);
-    showStatus("error", msg("statusLoadFailed"));
-  }
-}
+const popupConnectionFlowRunner = createConnectionFlowRunner({
+  loadLocaleMessages,
+  platformConfigs: PLATFORM_CONFIGS,
+  msg,
+  consentVersion: CONSENT_VERSION,
+  log: (event, payload) => console.log(`[hostier] popup continuePendingConnectionFlow:${event}`, payload),
+  readPlatformAuthBundleWithRetry,
+  validate33m2SessionInBrowser,
+  fetchHostier,
+  localLogout33m2: logout33m2,
+  enterAwaitingSourceState,
+  setConnectionFlowState,
+  pruneBulkReconnectPendingConnections: (...args) => popupDeps.pruneBulkReconnectPendingConnections(...args),
+  formatConnectionError: (...args) => popupDeps.formatConnectionError(...args),
+  onAuthBundleMissing: async (...args) => popupDeps.onAuthBundleMissing(...args),
+  onAwaiting: async (...args) => popupDeps.onAwaiting(...args),
+  beforeCycle: async (...args) => popupDeps.beforeCycle(...args),
+  onBlocking: async (...args) => popupDeps.onBlocking(...args),
+  onUnauthorized: async () => popupDeps.showLoginGate(),
+  onError: async (...args) => popupDeps.onError(...args),
+  afterSuccessfulSave: async (...args) => popupDeps.afterSuccessfulSave(...args),
+  onSuccess: async (...args) => popupDeps.onSuccess(...args),
+});
+popupDeps.popupConnectionFlowRunner = popupConnectionFlowRunner;
 
-async function initializePopup() {
-  statusLoadState = "loading";
-  const token = await getExtensionToken();
-  if (!token) {
-    showLoginGate();
-    return;
-  }
+const popupViewController = createPopupRenderController(popupDeps);
+Object.assign(popupDeps, popupViewController);
+const {
+  getBulkReconnectCandidates,
+  hasExistingConnections,
+  renderViews,
+} = popupViewController;
 
-  currentSession = { user: { email: null } };
-  setHeaderState({
-    email: "",
-    showWebsiteLink: true,
-  });
-  await loadStatus();
-  await resumeConnectionFlowIfNeeded();
-}
+const popupGuardController = createPopupGuardController(popupDeps);
+Object.assign(popupDeps, popupGuardController);
+const {
+  clearGuardState,
+  showLoginGate,
+  showDisclosure,
+} = popupGuardController;
+
+const popupFlowController = createPopupFlowController(popupDeps);
+Object.assign(popupDeps, popupFlowController);
+const {
+  refreshExtensionTokenSilently,
+  pruneBulkReconnectPendingConnections,
+  continuePendingConnectionFlowInPopup,
+  disconnectConnection,
+  safeLogout33m2,
+  connectPlatform,
+  resumeConnectionFlowIfNeeded,
+  loadStatus,
+  initializePopup,
+} = popupFlowController;
+
 
 ui.detailBack.addEventListener("click", () => {
   currentPlatform = null;
   renderViews();
 });
 
+ui.detailBulkReconnect.addEventListener("click", () => {
+  if (currentPlatform !== "THIRTY_THREE_M2") return;
+  showDisclosure(currentPlatform, {
+    bulkReconnect: true,
+    pendingConnections: getBulkReconnectCandidates(currentPlatform),
+    showDetailView: true,
+  });
+});
+
 ui.detailAddAccount.addEventListener("click", () => {
   if (!currentPlatform) return;
   showDisclosure(currentPlatform, { showDetailView: true });
+});
+
+ui.detailSafeLogout.addEventListener("click", () => {
+  if (currentPlatform !== "THIRTY_THREE_M2") return;
+  void safeLogout33m2();
 });
 
 ui.openWebsite.addEventListener("click", (event) => {
@@ -1233,6 +591,7 @@ ui.openWebsite.addEventListener("click", (event) => {
 async function bootstrapPopup() {
   await loadLocaleMessages();
   await resolveHostierUrl();
+  await refreshExtensionTokenSilently();
 
   setHeaderState({
     email: "",

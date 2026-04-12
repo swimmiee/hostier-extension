@@ -20,6 +20,14 @@
   "reconnect": {
     "message": "Reconnect"
   },
+  "bulkReconnect": {
+    "message": "Reconnect $1 expired accounts",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
   "expired": {
     "message": "Expired"
   },
@@ -32,11 +40,35 @@
   "refreshStatus": {
     "message": "Refresh"
   },
+  "safeLogout": {
+    "message": "Safe Logout"
+  },
+  "safeLogoutStatus": {
+    "message": "Safe Logout in progress."
+  },
+  "safeLogoutComplete": {
+    "message": "Safe Logout completed. Open 33m2 and sign in with the next account."
+  },
+  "safeLogoutCompleteNoTab": {
+    "message": "Safe Logout completed."
+  },
+  "safeLogoutFailed": {
+    "message": "Safe Logout failed. Try again."
+  },
+  "loginNow": {
+    "message": "Sign in"
+  },
   "loadingConnections": {
     "message": "Loading connection status."
   },
+  "loadingPopup": {
+    "message": "Loading connection state."
+  },
   "loadingShort": {
     "message": "Loading"
+  },
+  "cancel": {
+    "message": "Cancel"
   },
   "platformListTitle": {
     "message": "Platform connection"
@@ -94,11 +126,25 @@
       }
     }
   },
+  "connectDisclosure33m2AddAccountBody": {
+    "message": "Choosing Add another account may sign you out of the current 33m2 session. After that, sign in again with the account you want to connect next."
+  },
+  "connectDisclosureBulkReconnectBody": {
+    "message": "Reconnect the remaining expired $platform$ accounts in any order. Hostier only refreshes an existing matching connection for the currently signed-in account and never creates a new connection in this flow.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
   "connectDisclosureCheckbox": {
     "message": "I have read this and want to continue with the connection."
   },
   "connectDisclosurePrimary": {
     "message": "Agree to connect"
+  },
+  "continueAction": {
+    "message": "Continue"
   },
   "addAnotherAccount": {
     "message": "Add another account"
@@ -163,6 +209,23 @@
       }
     }
   },
+  "signedInAsStatus": {
+    "message": "$platform$ permission confirmed. Current signed-in account: $account$",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      },
+      "account": {
+        "content": "$2"
+      }
+    }
+  },
+  "preparingAccountSwitchStatus": {
+    "message": "Preparing the current 33m2 connection before account switching."
+  },
+  "loginNext33m2Account": {
+    "message": "Now sign in again with the next 33m2 account you want to connect."
+  },
   "statusLoadFailed": {
     "message": "Failed to load the connection status. Try again."
   },
@@ -176,6 +239,40 @@
   },
   "loginAndReturn33m2": {
     "message": "Sign in to 33m2, keep a logged-in tab open, then return to the extension and connect again."
+  },
+  "awaitingSourceTitle": {
+    "message": "Sign-in required"
+  },
+  "awaitingSourceKicker": {
+    "message": "Reconnect"
+  },
+  "awaitingSourceHint": {
+    "message": "Sign in to 33m2 with this account, then come back."
+  },
+  "awaitingSourceGenericTitle": {
+    "message": "Next 33m2 account"
+  },
+  "awaitingSourceReconnectBody": {
+    "message": "Sign in to $platform$ with the $account$ account, then return to the extension.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      },
+      "account": {
+        "content": "$2"
+      }
+    }
+  },
+  "awaitingSourceBulkReconnectBody": {
+    "message": "The next reconnect target is $account$. Sign in to $platform$ with that account, then return to the extension.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      },
+      "account": {
+        "content": "$2"
+      }
+    }
   },
   "missing33m2OpenTab": {
     "message": "A logged-in 33m2 tab must be open before this connection can continue."
@@ -194,8 +291,33 @@
   "detailReconnectHint": {
     "message": "Reconnect only refreshes the selected account. Use Add another account to connect the currently signed-in account as a separate entry."
   },
+  "detailBulkReconnectHint": {
+    "message": "Continue reconnect walks through expired 33m2 accounts one login at a time and only refreshes the remaining expired matches."
+  },
+  "bulkReconnectWaiting": {
+    "message": "$1 expired accounts remaining. Sign in to the next 33m2 account and keep its tab open so the extension can continue automatically.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "bulkReconnectMismatch": {
+    "message": "The currently signed-in 33m2 account is not in the remaining expired list."
+  },
+  "bulkReconnectComplete": {
+    "message": "All expired $platform$ accounts have been reconnected.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
   "reconnectMismatchHint": {
     "message": "If you want to connect the currently signed-in account, use Add another account instead."
+  },
+  "prepareAccountSwitchFailedHint": {
+    "message": "Hostier could not safely verify the currently signed-in 33m2 account, so it did not move on to the next account sign-in step. Check the current login state and try again."
   },
   "accountConnectedElsewhereHint": {
     "message": "The same 33m2 account cannot be connected to another Hostier account at the same time."
