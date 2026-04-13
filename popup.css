@@ -53,15 +53,12 @@ body {
   color: #6b7280;
 }
 
-.header-link,
 .footer a {
   font-size: 11px;
   color: #6b7280;
   text-decoration: none;
 }
 
-.header-link:hover,
-.header-link:focus-visible,
 .guard-link:hover,
 .guard-link:focus-visible {
   text-decoration: underline;

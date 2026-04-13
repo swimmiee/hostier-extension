@@ -31,9 +31,6 @@
   "expired": {
     "message": "만료됨"
   },
-  "openWebsite": {
-    "message": "웹사이트 열기"
-  },
   "privacyPolicy": {
     "message": "개인정보처리방침 보기"
   },

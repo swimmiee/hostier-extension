@@ -58,7 +58,6 @@ const { createPopupRenderController } = globalThis.HostierPopupRenderShared;
 const { createPopupGuardController } = globalThis.HostierPopupGuardShared;
 const { createPopupFlowController } = globalThis.HostierPopupFlowShared;
 
-const getHostierUrl = hostierClient.getHostierUrl;
 const getHostierLoginUrl = hostierClient.getHostierLoginUrl;
 const getPrivacyPolicyUrl = hostierClient.getPrivacyPolicyUrl;
 const resolveHostierUrl = hostierClient.resolveHostierUrl;
@@ -169,7 +168,6 @@ const ui = {
   awaitingSecondary: document.getElementById("awaitingSecondary"),
   loadingView: document.getElementById("loadingView"),
   loadingText: document.getElementById("loadingText"),
-  openWebsite: document.getElementById("openWebsite"),
   privacyLink: document.getElementById("privacyLink"),
   guard: document.getElementById("guard"),
   guardTitle: document.getElementById("guardTitle"),
@@ -209,10 +207,9 @@ function openUrl(url) {
   chrome.tabs.create({ url });
 }
 
-function setHeaderState({ email = "", showWebsiteLink = true } = {}) {
+function setHeaderState({ email = "" } = {}) {
   ui.userEmail.textContent = email;
   ui.userEmail.hidden = !email;
-  ui.openWebsite.hidden = !showWebsiteLink;
 }
 
 function showStatus(kind, message) {
@@ -583,11 +580,6 @@ ui.detailSafeLogout.addEventListener("click", () => {
   void safeLogout33m2();
 });
 
-ui.openWebsite.addEventListener("click", (event) => {
-  event.preventDefault();
-  openUrl(getHostierUrl());
-});
-
 async function bootstrapPopup() {
   await loadLocaleMessages();
   await resolveHostierUrl();
@@ -595,9 +587,7 @@ async function bootstrapPopup() {
 
   setHeaderState({
     email: "",
-    showWebsiteLink: true,
   });
-  ui.openWebsite.textContent = msg("openWebsite");
   ui.privacyLink.textContent = msg("privacyPolicy");
   ui.privacyLink.href = getPrivacyPolicyUrl();
   ui.listTitle.textContent = msg("platformListTitle");
