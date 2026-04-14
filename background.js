@@ -162,6 +162,21 @@ function getInstallDetectionMatches() {
   return [hostierMatch, "http://localhost:5173/*"];
 }
 
+function isHostierInstallDetectionUrl(rawUrl) {
+  if (typeof rawUrl !== "string" || rawUrl.length === 0) {
+    return false;
+  }
+
+  const configuredHostierOrigin = new URL(getExtensionConfig().hostierUrl).origin;
+
+  try {
+    const parsed = new URL(rawUrl);
+    return parsed.origin === configuredHostierOrigin || parsed.origin === "http://localhost:5173";
+  } catch {
+    return false;
+  }
+}
+
 function isDevTarget() {
   return getExtensionConfig().target === "dev";
 }
@@ -455,12 +470,37 @@ async function injectInstallDetector(tabId) {
   }
 }
 
+async function maybeInjectInstallDetector(tabId, url) {
+  if (!isHostierInstallDetectionUrl(url)) {
+    return;
+  }
+
+  await injectInstallDetector(tabId);
+}
+
 async function notifyOpenHostierTabs() {
   const tabs = await chrome.tabs.query({
     url: getInstallDetectionMatches(),
   });
 
   await Promise.all(tabs.map((tab) => injectInstallDetector(tab.id)));
+}
+
+async function maybeInjectInstallDetectorIntoActiveTab(windowId) {
+  if (!Number.isInteger(windowId) || windowId === chrome.windows.WINDOW_ID_NONE) {
+    return;
+  }
+
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    windowId,
+  });
+
+  if (!tab) {
+    return;
+  }
+
+  await maybeInjectInstallDetector(tab.id, tab.url);
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -498,10 +538,21 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 
   const nextUrl = changeInfo.url || tab?.url;
+  void maybeInjectInstallDetector(tabId, nextUrl);
   void maybeInject33m2PageGuard(tabId, nextUrl);
   if (changeInfo.status === "complete") {
     void maybeReconcile33m2SessionFromTab(tabId, nextUrl);
   }
+});
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  void chrome.tabs.get(activeInfo.tabId)
+    .then((tab) => maybeInjectInstallDetector(tab.id, tab.url))
+    .catch(() => {});
+});
+
+chrome.windows.onFocusChanged?.addListener((windowId) => {
+  void maybeInjectInstallDetectorIntoActiveTab(windowId);
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
