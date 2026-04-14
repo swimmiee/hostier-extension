@@ -2,15 +2,35 @@ const HOSTIER_EXTENSION_PING_EVENT = "hostier-extension:ping";
 const HOSTIER_EXTENSION_INSTALLED_EVENT = "hostier-extension:installed";
 const INSTALL_DETECTOR_FLAG = "__HOSTIER_INSTALL_DETECTOR_ACTIVE__";
 
+function getInstalledVersion() {
+  try {
+    return globalThis.chrome?.runtime?.getManifest?.().version ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function markExtensionInstalled() {
   const root = document.documentElement;
   if (!root) {
     return;
   }
 
+  const version = getInstalledVersion();
+
   root.dataset.hostierExtensionInstalled = "true";
   root.dataset.hostierExtensionLastSeenAt = String(Date.now());
-  root.dispatchEvent(new Event(HOSTIER_EXTENSION_INSTALLED_EVENT));
+  if (version) {
+    root.dataset.hostierExtensionVersion = version;
+  } else {
+    delete root.dataset.hostierExtensionVersion;
+  }
+
+  root.dispatchEvent(
+    new CustomEvent(HOSTIER_EXTENSION_INSTALLED_EVENT, {
+      detail: { version },
+    }),
+  );
 }
 
 if (!globalThis[INSTALL_DETECTOR_FLAG]) {

@@ -28,6 +28,9 @@ function normalizeHostierUrl(rawUrl) {
 }
 
 function buildManifest(hostierUrl) {
+  const extensionVersion = JSON.parse(
+    readFileSync(resolve("package.json"), "utf8"),
+  ).version;
   const hostierMatch = `${hostierUrl}/*`;
   const localhostMatch = "http://localhost:5173/*";
   const installDetectionMatches = [hostierMatch, localhostMatch];
@@ -35,7 +38,7 @@ function buildManifest(hostierUrl) {
   return {
     manifest_version: 3,
     name: "Hostier",
-    version: "2.0.0",
+    version: extensionVersion,
     default_locale: "ko",
     description: "__MSG_extDescription__",
     permissions: ["cookies", "storage", "scripting", "tabs"],
