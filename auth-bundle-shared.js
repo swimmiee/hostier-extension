@@ -32,8 +32,12 @@
         return null;
       }
 
+      const preferredStoreId =
+        typeof options.preferredStoreId === "string" && options.preferredStoreId.length > 0
+          ? options.preferredStoreId
+          : null;
       const tab = platform === "THIRTY_THREE_M2"
-        ? await findPreferred33m2Tab()
+        ? await findPreferred33m2Tab({ preferredStoreId })
         : null;
       const storeId = Number.isInteger(tab?.id)
         ? await getCookieStoreIdForTab(tab.id)

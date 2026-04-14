@@ -31,6 +31,10 @@
         return deps.msg("loadingConnections");
       }
 
+      if (!deps.getPlatformPermissionState(platform)) {
+        return deps.msg("permissionRequiredSummary", [deps.platformConfigs[platform].label]);
+      }
+
       const connections = deps.getConnections(platform);
       if (connections.length === 0) {
         return "연결된 계정이 없습니다.";
@@ -120,11 +124,17 @@
 
       for (const [platform, config] of Object.entries(deps.platformConfigs)) {
         const hasConnections = hasExistingConnections(platform);
+        const hasPermission = deps.getPlatformPermissionState(platform);
         const row = deps.document.createElement("button");
         row.type = "button";
         row.className = "platform-row";
         row.disabled = deps.isStatusLoading();
         row.onclick = () => {
+          if (!hasPermission) {
+            void deps.requestPlatformPermission(platform, { showDetailView: false });
+            return;
+          }
+
           if (hasConnections) {
             deps.setCurrentPlatform(platform);
             return;
@@ -153,9 +163,13 @@
         row.append(body);
 
         const action = deps.document.createElement("span");
-        action.className = "platform-action";
+        action.className = !hasPermission
+          ? "platform-action platform-action-cta"
+          : "platform-action";
         action.textContent = deps.isStatusLoading()
           ? deps.msg("loadingShort")
+          : !hasPermission
+            ? deps.msg("grantPermission")
           : hasConnections
             ? "관리"
             : deps.msg("connect");
@@ -238,6 +252,10 @@
           reconnectButton.className = "text-action primary";
           reconnectButton.textContent = deps.msg("reconnect");
           reconnectButton.onclick = () => {
+            if (!deps.getPlatformPermissionState(currentPlatform)) {
+              void deps.requestPlatformPermission(currentPlatform, { showDetailView: true });
+              return;
+            }
             deps.showDisclosure(currentPlatform, {
               connectionId: connection.id,
               accountKey: connection.accountKey || undefined,

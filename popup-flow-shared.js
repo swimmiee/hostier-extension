@@ -102,6 +102,29 @@
       }
     }
 
+    async function requestPlatformPermission(platform, options = {}) {
+      const config = deps.platformConfigs[platform];
+      if (!config) {
+        return false;
+      }
+
+      deps.clearStatus();
+      const granted = await ensurePlatformPermission(config);
+      if (!granted) {
+        deps.showStatus("error", deps.msg("permissionDenied", [config.label]));
+        deps.setPlatformPermissionState(platform, false);
+        deps.renderViews();
+        return false;
+      }
+
+      deps.setPlatformPermissionState(platform, true);
+      await deps.loadStatus();
+      if (options.showDetailView) {
+        deps.setCurrentPlatform(platform);
+      }
+      return true;
+    }
+
     async function safeLogout33m2() {
       deps.clearBlockingLoading();
       deps.clearStatus();
@@ -357,9 +380,15 @@
         });
 
         deps.resetConnectionsByPlatform(Object.keys(deps.platformConfigs));
+        deps.resetPlatformPermissionState(Object.keys(deps.platformConfigs));
         for (const connection of data.connections ?? []) {
           deps.pushConnection(connection.platform, connection);
         }
+        await Promise.all(
+          Object.entries(deps.platformConfigs).map(async ([platform, config]) => {
+            deps.setPlatformPermissionState(platform, await hasPlatformPermission(config));
+          }),
+        );
 
         deps.setStatusLoadState("ready");
         deps.clearGuardState();
@@ -393,6 +422,7 @@
       pruneBulkReconnectPendingConnections,
       continuePendingConnectionFlowInPopup,
       disconnectConnection,
+      requestPlatformPermission,
       safeLogout33m2,
       connectPlatform,
       resumeConnectionFlowIfNeeded,

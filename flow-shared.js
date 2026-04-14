@@ -275,12 +275,37 @@
     }
   }
 
-  async function findPreferred33m2Tab() {
+  async function findPreferred33m2Tab(options = {}) {
+    const { preferredStoreId = null } = options;
     const [activeTab] = await root.chrome.tabs.query({
       active: true,
       lastFocusedWindow: true,
     });
     const matchingTabs = await root.chrome.tabs.query({ url: "https://web.33m2.co.kr/*" });
+
+    if (preferredStoreId) {
+      if (
+        activeTab?.id
+        && typeof activeTab.url === "string"
+        && activeTab.url.startsWith("https://web.33m2.co.kr/")
+      ) {
+        const activeStoreId = await getCookieStoreIdForTab(activeTab.id);
+        if (activeStoreId === preferredStoreId) {
+          return activeTab;
+        }
+      }
+
+      for (const tab of matchingTabs) {
+        if (!Number.isInteger(tab?.id)) {
+          continue;
+        }
+
+        const storeId = await getCookieStoreIdForTab(tab.id);
+        if (storeId === preferredStoreId) {
+          return tab;
+        }
+      }
+    }
 
     if (
       activeTab?.id

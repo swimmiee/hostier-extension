@@ -37,8 +37,19 @@
   "refreshStatus": {
     "message": "Refresh"
   },
+  "grantPermission": {
+    "message": "Grant access"
+  },
+  "permissionRequiredSummary": {
+    "message": "Permission is required for connection and automatic refresh.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
+  },
   "safeLogout": {
-    "message": "Safe Logout"
+    "message": "Log out current account"
   },
   "safeLogoutStatus": {
     "message": "Safe Logout in progress."

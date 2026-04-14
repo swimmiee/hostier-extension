@@ -77,3 +77,44 @@ test("auth bundle reader returns login guidance when cookie is missing", async (
     openUrl: "https://web.33m2.co.kr/sign-in",
   });
 });
+
+test("auth bundle reader forwards preferredStoreId when selecting the 33m2 tab", async () => {
+  const findPreferred33m2TabCalls = [];
+  global.HostierExtensionShared.findPreferred33m2Tab = async (options) => {
+    findPreferred33m2TabCalls.push(options);
+    return { id: 7 };
+  };
+
+  const reader = createPlatformAuthBundleReader({
+    chromeApi: {
+      cookies: {
+        async get() {
+          return {
+            value: "session-token",
+            expirationDate: 1_800_000_000,
+          };
+        },
+      },
+    },
+    platformConfigs: {
+      THIRTY_THREE_M2: {
+        url: "https://web.33m2.co.kr/",
+        name: "__Secure-session-token",
+        firebaseSessionName: "__firebase_session",
+        loginUrl: "https://web.33m2.co.kr/sign-in",
+        ttlDays: 30,
+        label: "33m2",
+      },
+    },
+    msg: (key) => key,
+  });
+
+  await reader.readPlatformAuthBundle("THIRTY_THREE_M2", {
+    allowMissingRefreshToken: true,
+    preferredStoreId: "store-2",
+  });
+
+  assert.deepEqual(findPreferred33m2TabCalls, [
+    { preferredStoreId: "store-2" },
+  ]);
+});

@@ -156,6 +156,7 @@ const { readPlatformAuthBundleWithRetry } = createPlatformAuthBundleReader({
   msg,
 });
 const logout33m2 = (options = {}) => localLogout33m2(PLATFORM_CONFIGS.THIRTY_THREE_M2, options);
+const HOSTIER_33M2_SILENT_SYNC_SAVED = "HOSTIER_33M2_SILENT_SYNC_SAVED";
 
 const ui = {
   userEmail: document.getElementById("userEmail"),
@@ -201,6 +202,7 @@ let awaitingSourcePollTimer = null;
 let awaitingSourcePollInFlight = false;
 let guardActive = false;
 const connectionsByPlatform = new Map();
+const platformPermissionState = new Map();
 
 function openUrl(url) {
   chrome.tabs.create({ url });
@@ -259,6 +261,14 @@ function stopAwaitingSourcePoll() {
 
 function getConnections(platform) {
   return connectionsByPlatform.get(platform) ?? [];
+}
+
+function getPlatformPermissionState(platform) {
+  return platformPermissionState.get(platform) === true;
+}
+
+function setPlatformPermissionState(platform, value) {
+  platformPermissionState.set(platform, value === true);
 }
 
 function isStatusLoading() {
@@ -416,6 +426,8 @@ const popupDeps = {
   enterAwaitingSourceState,
   formatConnectionError,
   getConnections,
+  getPlatformPermissionState,
+  setPlatformPermissionState,
   isStatusLoading,
   getCurrentSession: () => currentSession,
   setCurrentSession: (value) => { currentSession = value; },
@@ -439,6 +451,12 @@ const popupDeps = {
     connectionsByPlatform.clear();
     for (const platform of platforms) {
       connectionsByPlatform.set(platform, []);
+    }
+  },
+  resetPlatformPermissionState: (platforms) => {
+    platformPermissionState.clear();
+    for (const platform of platforms) {
+      platformPermissionState.set(platform, false);
     }
   },
   pushConnection: (platform, connection) => {
@@ -567,6 +585,14 @@ ui.detailAddAccount.addEventListener("click", () => {
 ui.detailSafeLogout.addEventListener("click", () => {
   if (currentPlatform !== "THIRTY_THREE_M2") return;
   void safeLogout33m2();
+});
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type !== HOSTIER_33M2_SILENT_SYNC_SAVED) {
+    return;
+  }
+
+  void loadStatus();
 });
 
 async function bootstrapPopup() {

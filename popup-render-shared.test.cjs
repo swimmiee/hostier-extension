@@ -36,7 +36,7 @@ test("renderDetailView omits bulk reconnect CTA but still renders expired 33m2 d
     detailReconnectHint: "다시 연결은 선택한 계정만 갱신합니다. 현재 로그인된 계정으로 새 연결을 만들려면 다른 계정 추가를 사용하세요.",
     expired: "만료",
     reconnect: "다시 연결",
-    safeLogout: "Safe Logout",
+    safeLogout: "현재 로그인 된 계정 로그아웃",
   };
   const ui = {
     listView: new FakeElement(),
@@ -73,6 +73,8 @@ test("renderDetailView omits bulk reconnect CTA but still renders expired 33m2 d
       accountKey: "hostier@example.com",
       autoMaintainEnabled: true,
     }],
+    getPlatformPermissionState: () => true,
+    requestPlatformPermission: () => {},
     isStatusLoading: () => false,
     isReconnectRequired: (connection) => connection.status === "EXPIRED",
     normalizeBulkReconnectPendingConnections: (connections) => connections ?? [],
@@ -95,4 +97,51 @@ test("renderDetailView omits bulk reconnect CTA but still renders expired 33m2 d
   const actions = accountRow.children[1];
   assert.equal(actions.children.length, 2);
   assert.equal(actions.children[0].textContent, messages.reconnect);
+});
+
+test("renderPlatformList shows grantPermission when the platform permission is missing", () => {
+  const requested = [];
+  const ui = {
+    platformList: new FakeElement(),
+  };
+  const controller = createPopupRenderController({
+    document: {
+      createElement: (tagName) => new FakeElement(tagName),
+    },
+    ui,
+    platformConfigs: {
+      THIRTY_THREE_M2: {
+        label: "33m2",
+      },
+    },
+    msg: (key, substitutions) => {
+      if (key === "grantPermission") return "권한 허용";
+      if (key === "permissionRequiredSummary") return "연결과 자동 갱신을 위해 권한이 필요합니다.";
+      if (key === "loadingShort") return "불러오는 중";
+      if (key === "connect") return "연결하기";
+      return key;
+    },
+    getConnections: () => [],
+    getPlatformPermissionState: () => false,
+    requestPlatformPermission: (platform) => requested.push(platform),
+    setCurrentPlatform: () => {
+      throw new Error("should not open detail when permission is missing");
+    },
+    showDisclosure: () => {
+      throw new Error("should not show disclosure when permission is missing");
+    },
+    isStatusLoading: () => false,
+    isReconnectRequired: () => false,
+    normalizeBulkReconnectPendingConnections: (connections) => connections ?? [],
+  });
+
+  controller.renderPlatformList();
+
+  assert.equal(ui.platformList.children.length, 1);
+  const [row] = ui.platformList.children;
+  assert.equal(row.children[1].children[1].textContent, "연결과 자동 갱신을 위해 권한이 필요합니다.");
+  assert.equal(row.children[2].textContent, "권한 허용");
+  assert.equal(row.children[2].className, "platform-action platform-action-cta");
+  row.onclick();
+  assert.deepEqual(requested, ["THIRTY_THREE_M2"]);
 });

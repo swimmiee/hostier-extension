@@ -77,12 +77,28 @@
       });
     }
 
-    function showDisclosure(platform, options = {}) {
+    async function showDisclosure(platform, options = {}) {
       const config = deps.platformConfigs[platform];
       const accountLabel = typeof options.displayLabel === "string" ? options.displayLabel : "";
       const pendingConnections = deps.normalizeBulkReconnectPendingConnections(
         options.pendingConnections,
       );
+      const permissionAlreadyGranted = config?.origin
+        ? await new Promise((resolve) => {
+          deps.chrome.permissions.contains({ origins: [config.origin] }, (granted) => {
+            resolve(Boolean(granted));
+          });
+        })
+        : false;
+
+      if (permissionAlreadyGranted) {
+        await deps.connectPlatform(platform, {
+          ...options,
+          pendingConnections,
+        });
+        return;
+      }
+
       deps.clearStatus();
       deps.setHeaderState({
         email: deps.getCurrentSession()?.user?.email || "",

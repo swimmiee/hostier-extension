@@ -1,4 +1,4 @@
-importScripts("config.js", "flow-shared.js", "hostier-client-shared.js", "auth-bundle-shared.js", "connection-flow-shared.js", "connection-runner-shared.js");
+importScripts("config.js", "flow-shared.js", "hostier-client-shared.js", "auth-bundle-shared.js", "connection-flow-shared.js", "connection-runner-shared.js", "background-33m2-shared.js");
 
 const DEV_HELPER_PATH = "dev-helper.html";
 const CONSENT_VERSION = "extension-consent-v1";
@@ -15,6 +15,8 @@ const {
   normalizeBulkReconnectPendingConnections,
   validate33m2SessionInBrowser,
   localLogout33m2,
+  findPreferred33m2Tab,
+  getCookieStoreIdForTab,
 } = globalThis.HostierExtensionShared;
 const hostierClient = globalThis.HostierClientShared.createHostierClient({
   chromeApi: chrome,
@@ -30,8 +32,10 @@ const getExtensionToken = hostierClient.getExtensionToken;
 const fetchHostier = hostierClient.fetchHostier;
 const {
   getBulkReconnectMismatchMessage,
+  get33m2AccountKeyFromToken,
 } = globalThis.HostierConnectionFlowShared;
 const { createPlatformAuthBundleReader } = globalThis.HostierAuthBundleShared;
+const { create33m2BackgroundCoordinator } = globalThis.HostierBackground33M2Shared;
 
 const PLATFORM_CONFIGS = {
   THIRTY_THREE_M2: {
@@ -73,6 +77,11 @@ const { readPlatformAuthBundleWithRetry } = createPlatformAuthBundleReader({
   msg,
 });
 const logout33m2 = (options = {}) => localLogout33m2(PLATFORM_CONFIGS.THIRTY_THREE_M2, options);
+const THIRTY_THREE_M2_BRIDGE_MESSAGE_TYPES = {
+  GET_BROWSER_SESSION: "HOSTIER_GET_33M2_BROWSER_SESSION",
+  SAFE_LOGOUT: "HOSTIER_SAFE_LOGOUT_33M2",
+};
+const HOSTIER_33M2_SILENT_SYNC_SAVED = "HOSTIER_33M2_SILENT_SYNC_SAVED";
 const backgroundConnectionFlowRunner = globalThis.HostierConnectionRunnerShared.createConnectionFlowRunner({
   loadLocaleMessages,
   platformConfigs: PLATFORM_CONFIGS,
@@ -110,6 +119,34 @@ const backgroundConnectionFlowRunner = globalThis.HostierConnectionRunnerShared.
       message,
     });
   },
+});
+const background33m2Coordinator = create33m2BackgroundCoordinator({
+  platformConfig: PLATFORM_CONFIGS.THIRTY_THREE_M2,
+  consentVersion: CONSENT_VERSION,
+  debounceMs: 1200,
+  cooldownMs: 8000,
+  log: (event, payload) => {
+    console.log(`[hostier] ${event}`, payload);
+    if (event === "33m2SilentSyncSaved") {
+      chrome.runtime.sendMessage({
+        type: HOSTIER_33M2_SILENT_SYNC_SAVED,
+        payload,
+      }).catch?.(() => {});
+    }
+  },
+  hasPermission: (origin) =>
+    new Promise((resolve) => {
+      chrome.permissions.contains({ origins: [origin] }, (granted) => {
+        resolve(Boolean(granted));
+      });
+    }),
+  getConnectionFlowState,
+  readPlatformAuthBundleWithRetry: (platform, options) =>
+    readPlatformAuthBundleWithRetry(platform, options),
+  get33m2AccountKeyFromToken,
+  findPreferred33m2Tab,
+  fetchHostier,
+  localLogout33m2: logout33m2,
 });
 
 function getExtensionConfig() {
@@ -333,6 +370,59 @@ async function maybeContinueConnectionFlowForSteps(allowedSteps) {
   }
 }
 
+async function maybeInject33m2PageGuard(tabId, url) {
+  if (!Number.isInteger(tabId) || !background33m2Coordinator.shouldInjectIntoUrl(url)) {
+    return false;
+  }
+
+  const granted = await new Promise((resolve) => {
+    chrome.permissions.contains(
+      { origins: [PLATFORM_CONFIGS.THIRTY_THREE_M2.origin] },
+      (hasPermission) => resolve(Boolean(hasPermission)),
+    );
+  });
+
+  if (!granted) {
+    return false;
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["page-guard-33m2-shared.js", "page-guard-33m2.js"],
+    });
+    return true;
+  } catch (error) {
+    console.warn("[hostier] Failed to inject 33m2 page guard:", error);
+    return false;
+  }
+}
+
+async function maybeReconcile33m2SessionFromTab(tabId, url) {
+  if (!Number.isInteger(tabId) || !background33m2Coordinator.shouldInjectIntoUrl(url)) {
+    return false;
+  }
+
+  const storeId = await getCookieStoreIdForTab(tabId);
+  await background33m2Coordinator.performSilentSync({
+    storeId: storeId || "default",
+    changedCookieName: "page_load",
+  });
+  return true;
+}
+
+async function maybeInjectOpen33m2PageGuards() {
+  const tabs = await chrome.tabs.query({
+    url: PLATFORM_CONFIGS.THIRTY_THREE_M2.origin,
+  }).catch(() => []);
+
+  await Promise.allSettled(
+    tabs
+      .filter((tab) => Number.isInteger(tab?.id))
+      .map((tab) => maybeInject33m2PageGuard(tab.id, tab.url)),
+  );
+}
+
 async function ensureDevHelperTab() {
   if (!isDevTarget()) {
     return;
@@ -376,22 +466,42 @@ async function notifyOpenHostierTabs() {
 chrome.runtime.onInstalled.addListener(() => {
   void notifyOpenHostierTabs();
   void ensureDevHelperTab();
+  void maybeInjectOpen33m2PageGuards();
 });
 
 chrome.runtime.onStartup?.addListener(() => {
   void ensureDevHelperTab();
+  void maybeInjectOpen33m2PageGuards();
 });
 
-chrome.permissions.onAdded.addListener(() => {
+chrome.permissions.onAdded.addListener((permissions) => {
   void maybeContinuePendingConnectionFlow();
+  if (Array.isArray(permissions?.origins) && permissions.origins.includes(PLATFORM_CONFIGS.THIRTY_THREE_M2.origin)) {
+    void maybeInjectOpen33m2PageGuards();
+  }
 });
 
 chrome.cookies.onChanged.addListener((changeInfo) => {
-  if (changeInfo.removed || !changeInfo.cookie) {
+  if (!changeInfo.cookie) {
     return;
   }
 
-  void maybeContinueAwaitingSourceFlow(changeInfo.cookie);
+  if (!changeInfo.removed) {
+    void maybeContinueAwaitingSourceFlow(changeInfo.cookie);
+  }
+  void background33m2Coordinator.maybeHandleCookieChange(changeInfo);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!changeInfo.url && changeInfo.status !== "complete") {
+    return;
+  }
+
+  const nextUrl = changeInfo.url || tab?.url;
+  void maybeInject33m2PageGuard(tabId, nextUrl);
+  if (changeInfo.status === "complete") {
+    void maybeReconcile33m2SessionFromTab(tabId, nextUrl);
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -405,6 +515,32 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .then((started) => sendResponse({ ok: true, started }))
       .catch((error) => {
         console.error("[hostier] Failed to continue connection flow from message:", error);
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return true;
+  }
+
+  if (message?.type === THIRTY_THREE_M2_BRIDGE_MESSAGE_TYPES.GET_BROWSER_SESSION) {
+    void background33m2Coordinator.getBrowserSessionSummary()
+      .then((summary) => sendResponse({ ok: true, summary }))
+      .catch((error) => {
+        console.error("[hostier] Failed to read 33m2 browser session:", error);
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return true;
+  }
+
+  if (message?.type === THIRTY_THREE_M2_BRIDGE_MESSAGE_TYPES.SAFE_LOGOUT) {
+    void background33m2Coordinator.runSafeLogout()
+      .then((result) => sendResponse(result))
+      .catch((error) => {
+        console.error("[hostier] Failed to run 33m2 safe logout:", error);
         sendResponse({
           ok: false,
           error: error instanceof Error ? error.message : String(error),
