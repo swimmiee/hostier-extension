@@ -45,13 +45,13 @@ const PLATFORM_CONFIGS = {
     label: "33m2",
     autoMaintainEnabled: true,
   },
-  ENKORSTAY: {
+  ENKOSTAY: {
     url: "https://host.enko.kr/",
     origin: "https://host.enko.kr/*",
     name: "host.access.token",
     loginUrl: "https://host.enko.kr/signin",
     ttlDays: 365,
-    label: "EnkorStay",
+    label: "Enkostay",
     autoMaintainEnabled: false,
   },
   LIVEANYWHERE: {

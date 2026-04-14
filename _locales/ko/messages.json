@@ -288,9 +288,6 @@
   "detailReconnectHint": {
     "message": "다시 연결은 선택한 계정만 갱신합니다. 현재 로그인된 계정으로 새 연결을 만들려면 다른 계정 추가를 사용하세요."
   },
-  "detailBulkReconnectHint": {
-    "message": "만료 계정 이어서 재연결은 33m2 계정을 하나씩 로그인할 때마다 남은 만료 연결만 자동으로 갱신합니다."
-  },
   "bulkReconnectWaiting": {
     "message": "남은 만료 계정 $1개. 33m2에서 재연결할 계정으로 로그인하고 탭을 열어두면 자동으로 이어서 진행합니다.",
     "placeholders": {

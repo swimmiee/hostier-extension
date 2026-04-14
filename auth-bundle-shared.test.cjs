@@ -26,18 +26,18 @@ test("auth bundle reader returns non-33m2 cookie auth without refresh metadata",
       },
     },
     platformConfigs: {
-      ENKORSTAY: {
+      ENKOSTAY: {
         url: "https://host.enko.kr/",
         name: "host.access.token",
         loginUrl: "https://host.enko.kr/signin",
         ttlDays: 365,
-        label: "EnkorStay",
+        label: "Enkostay",
       },
     },
     msg: (key) => key,
   });
 
-  const result = await reader.readPlatformAuthBundle("ENKORSTAY");
+  const result = await reader.readPlatformAuthBundle("ENKOSTAY");
 
   assert.deepEqual(result, {
     ok: true,

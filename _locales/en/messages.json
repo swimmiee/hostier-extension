@@ -288,9 +288,6 @@
   "detailReconnectHint": {
     "message": "Reconnect only refreshes the selected account. Use Add another account to connect the currently signed-in account as a separate entry."
   },
-  "detailBulkReconnectHint": {
-    "message": "Continue reconnect walks through expired 33m2 accounts one login at a time and only refreshes the remaining expired matches."
-  },
   "bulkReconnectWaiting": {
     "message": "$1 expired accounts remaining. Sign in to the next 33m2 account and keep its tab open so the extension can continue automatically.",
     "placeholders": {

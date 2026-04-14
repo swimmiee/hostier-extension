@@ -176,21 +176,14 @@
 
       const config = deps.platformConfigs[currentPlatform];
       const connections = deps.getConnections(currentPlatform);
-      const bulkReconnectCandidates = getBulkReconnectCandidates(currentPlatform);
       ui.listView.hidden = true;
       ui.detailView.hidden = false;
       ui.detailTitle.textContent = config.label;
       ui.detailSummary.hidden = currentPlatform !== "THIRTY_THREE_M2" || connections.length === 0;
       ui.detailSummary.textContent =
         currentPlatform === "THIRTY_THREE_M2" && connections.length > 0
-          ? bulkReconnectCandidates.length > 0
-            ? deps.msg("detailBulkReconnectHint")
-            : deps.msg("detailReconnectHint")
+          ? deps.msg("detailReconnectHint")
           : "";
-      ui.detailBulkReconnect.hidden = bulkReconnectCandidates.length === 0;
-      ui.detailBulkReconnect.textContent = deps.msg("bulkReconnect", [
-        String(bulkReconnectCandidates.length),
-      ]);
       ui.detailSafeLogout.hidden = currentPlatform !== "THIRTY_THREE_M2";
       ui.detailSafeLogout.textContent = deps.msg("safeLogout");
       ui.detailAddAccount.textContent =

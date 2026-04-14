@@ -128,13 +128,13 @@ const PLATFORM_CONFIGS = {
     label: "33m2",
     autoMaintainEnabled: true,
   },
-  ENKORSTAY: {
+  ENKOSTAY: {
     url: "https://host.enko.kr/",
     origin: "https://host.enko.kr/*",
     name: "host.access.token",
     loginUrl: "https://host.enko.kr/signin",
     ttlDays: 365,
-    label: "EnkorStay",
+    label: "Enkostay",
     autoMaintainEnabled: false,
   },
   LIVEANYWHERE: {
@@ -187,7 +187,6 @@ const ui = {
   detailTitle: document.getElementById("detailTitle"),
   detailSummary: document.getElementById("detailSummary"),
   accountsList: document.getElementById("accountsList"),
-  detailBulkReconnect: document.getElementById("detailBulkReconnect"),
   detailSafeLogout: document.getElementById("detailSafeLogout"),
   detailAddAccount: document.getElementById("detailAddAccount"),
 };
@@ -528,7 +527,6 @@ popupDeps.popupConnectionFlowRunner = popupConnectionFlowRunner;
 const popupViewController = createPopupRenderController(popupDeps);
 Object.assign(popupDeps, popupViewController);
 const {
-  getBulkReconnectCandidates,
   hasExistingConnections,
   renderViews,
 } = popupViewController;
@@ -559,15 +557,6 @@ const {
 ui.detailBack.addEventListener("click", () => {
   currentPlatform = null;
   renderViews();
-});
-
-ui.detailBulkReconnect.addEventListener("click", () => {
-  if (currentPlatform !== "THIRTY_THREE_M2") return;
-  showDisclosure(currentPlatform, {
-    bulkReconnect: true,
-    pendingConnections: getBulkReconnectCandidates(currentPlatform),
-    showDetailView: true,
-  });
 });
 
 ui.detailAddAccount.addEventListener("click", () => {
