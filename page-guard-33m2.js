@@ -345,10 +345,10 @@
     getContainer();
     pendingNativeLogoutTarget = target;
     if (overlayTitleEl) {
-      overlayTitleEl.textContent = "33m2 로그아웃 전에 Hostier 안전 로그아웃을 쓰는 편이 안전합니다.";
+      overlayTitleEl.textContent = "Hostier 예약 동기화를 계속 자동으로 유지하려면 안전 로그아웃을 먼저 써주세요.";
     }
     if (overlayBodyEl) {
-      overlayBodyEl.textContent = "33m2 기본 로그아웃은 저장된 Hostier 연결을 더 빨리 무효화할 수 있습니다. Hostier 안전 로그아웃을 먼저 쓰면 브라우저 세션만 정리하고 저장된 연결은 최대한 유지합니다.";
+      overlayBodyEl.textContent = "33m2에서 바로 로그아웃하면 Hostier 연결이 함께 끊겨 예약 동기화가 멈출 수 있습니다. 아래 Hostier 안전 로그아웃을 누르면 자동 동기화를 최대한 유지하면서 로그아웃할 수 있습니다.";
     }
     setOverlayOpen(true);
   }
