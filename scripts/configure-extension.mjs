@@ -27,22 +27,37 @@ function normalizeHostierUrl(rawUrl) {
   return parsed.origin;
 }
 
-function buildManifest(hostierUrl) {
+function uniqueEntries(values) {
+  return [...new Set(values)];
+}
+
+function buildManifest(hostierUrl, target) {
   const extensionVersion = JSON.parse(
     readFileSync(resolve("package.json"), "utf8"),
   ).version;
   const hostierMatch = `${hostierUrl}/*`;
   const localhostMatch = "http://localhost:5173/*";
-  const installDetectionMatches = [hostierMatch, localhostMatch];
+  const hostMatches = target === "dev"
+    ? uniqueEntries([hostierMatch, localhostMatch])
+    : [hostierMatch];
+  const contentScripts = target === "dev"
+    ? [
+      {
+        matches: hostMatches,
+        js: ["install-detector.js"],
+        run_at: "document_idle",
+      },
+    ]
+    : [];
 
   return {
     manifest_version: 3,
-    name: "Hostier",
+    name: "__MSG_extName__",
     version: extensionVersion,
     default_locale: "ko",
     description: "__MSG_extDescription__",
     permissions: ["cookies", "storage", "scripting", "tabs"],
-    host_permissions: [hostierMatch, localhostMatch],
+    host_permissions: hostMatches,
     optional_host_permissions: [...PLATFORM_HOST_PERMISSIONS],
     icons: {
       "16": "icon16.png",
@@ -60,13 +75,7 @@ function buildManifest(hostierUrl) {
     background: {
       service_worker: "background.js",
     },
-    content_scripts: [
-      {
-        matches: installDetectionMatches,
-        js: ["install-detector.js"],
-        run_at: "document_idle",
-      },
-    ],
+    ...(contentScripts.length > 0 ? { content_scripts: contentScripts } : {}),
   };
 }
 
@@ -102,7 +111,7 @@ const configPath = resolve("config.js");
 
 writeFileIfChanged(
   manifestPath,
-  `${JSON.stringify(buildManifest(hostierUrl), null, 2)}\n`,
+  `${JSON.stringify(buildManifest(hostierUrl, target), null, 2)}\n`,
 );
 writeFileIfChanged(
   configPath,

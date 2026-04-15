@@ -1,6 +1,9 @@
 {
+  "extName": {
+    "message": "호스티어 Hostier"
+  },
   "extDescription": {
-    "message": "선택한 숙소 플랫폼 계정을 Hostier에 연결해 예약을 동기화"
+    "message": "단기임대 호스트를 위한 예약 관리 시스템"
   },
   "loginRequired": {
     "message": "로그인 필요"
@@ -85,13 +88,22 @@
     "message": "연결하기를 눌러 나오는 웹사이트에서 로그인을 해주세요.\n로그인이 완료되면 플랫폼 계정이 자동으로 호스티어에 연결됩니다."
   },
   "loginGateTitle": {
-    "message": "먼저 Hostier 웹사이트에 로그인해주세요"
+    "message": "먼저 Hostier 계정에 로그인해주세요"
   },
   "loginGateBody": {
-    "message": "확장 프로그램은 Hostier 계정과 연결된 상태에서만 플랫폼 쿠키와 토큰을 안전하게 전송할 수 있습니다."
+    "message": "로그인 후 이 팝업에서 플랫폼 연결 상태 확인, 권한 허용, 만료 계정 재연결을 계속 진행할 수 있습니다."
   },
   "loginGatePrimary": {
-    "message": "호스티어 열기"
+    "message": "Hostier 로그인"
+  },
+  "loginGateFeatureStatus": {
+    "message": "플랫폼 연결 상태를 이 팝업에서 바로 확인합니다."
+  },
+  "loginGateFeaturePermission": {
+    "message": "필요한 플랫폼 접근 권한을 요청하고 연결을 시작합니다."
+  },
+  "loginGateFeatureReconnect": {
+    "message": "만료 계정 재연결과 33m2 안전 로그아웃 흐름을 지원합니다."
   },
   "consentTitle": {
     "message": "플랫폼 연결 전에 정보 처리 동의가 필요합니다"

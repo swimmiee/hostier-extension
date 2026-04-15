@@ -3,6 +3,7 @@
     const {
       chromeApi,
       defaultHostierUrl,
+      allowLocalhost = false,
       extensionTokenStorageKey,
       connectionFlowStorageKey,
       hostierOriginStorageKey,
@@ -31,7 +32,12 @@
     }
 
     function getAllowedHostierUrls() {
-      return [...new Set([defaultHostierUrl, "http://localhost:5173"])];
+      return [
+        ...new Set([
+          defaultHostierUrl,
+          ...(allowLocalhost ? ["http://localhost:5173"] : []),
+        ]),
+      ];
     }
 
     function isAllowedHostierUrl(value) {

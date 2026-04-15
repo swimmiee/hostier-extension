@@ -14,7 +14,7 @@ const configureScriptPath = resolve(scriptDir, "configure-extension.mjs");
 const extensionDir = rootDir;
 const outputDir = resolve(rootDir, "dist");
 const outputZipPath = resolve(outputDir, "hostier-extension.zip");
-const packageEntries = [
+const commonEntries = [
   "_locales",
   "auth-bundle-shared.js",
   "background-33m2-shared.js",
@@ -22,15 +22,11 @@ const packageEntries = [
   "config.js",
   "connection-flow-shared.js",
   "connection-runner-shared.js",
-  "dev-helper.html",
-  "dev-helper.js",
-  "dev-reload.json",
   "flow-shared.js",
   "hostier-client-shared.js",
   "icon128.png",
   "icon16.png",
   "icon48.png",
-  "install-detector.js",
   "logo-mark.svg",
   "logo-wordmark.svg",
   "manifest.json",
@@ -42,6 +38,16 @@ const packageEntries = [
   "popup.css",
   "popup.html",
   "popup.js",
+];
+const devOnlyEntries = [
+  "dev-helper.html",
+  "dev-helper.js",
+  "dev-reload.json",
+  "install-detector.js",
+];
+const packageEntries = [
+  ...commonEntries,
+  ...(target === "dev" ? devOnlyEntries : []),
 ].filter((entry) => existsSync(resolve(extensionDir, entry)));
 
 execFileSync(process.execPath, [configureScriptPath, target], {

@@ -32,10 +32,11 @@ function createChromeStub() {
   };
 }
 
-test("hostier client accepts default and localhost origins", () => {
+test("hostier client accepts localhost only when explicitly enabled", () => {
   const client = createHostierClient({
     chromeApi: createChromeStub(),
     defaultHostierUrl: "http://127.0.0.1:3000",
+    allowLocalhost: true,
     extensionTokenStorageKey: "token",
     connectionFlowStorageKey: "flow",
     hostierOriginStorageKey: "origin",
@@ -45,6 +46,20 @@ test("hostier client accepts default and localhost origins", () => {
   assert.equal(client.isAllowedHostierUrl("http://127.0.0.1:3000/path"), true);
   assert.equal(client.isAllowedHostierUrl("http://localhost:5173/anything"), true);
   assert.equal(client.isAllowedHostierUrl("https://example.com"), false);
+});
+
+test("hostier client rejects localhost in production mode", () => {
+  const client = createHostierClient({
+    chromeApi: createChromeStub(),
+    defaultHostierUrl: "https://hostier.ai",
+    extensionTokenStorageKey: "token",
+    connectionFlowStorageKey: "flow",
+    hostierOriginStorageKey: "origin",
+    requestTimeoutMs: 1000,
+  });
+
+  assert.equal(client.isAllowedHostierUrl("https://hostier.ai/login"), true);
+  assert.equal(client.isAllowedHostierUrl("http://localhost:5173/anything"), false);
 });
 
 test("connection flow state is written and cleared through shared client", async () => {

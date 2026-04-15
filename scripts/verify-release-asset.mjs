@@ -29,6 +29,25 @@ if (entries.some((entry) => entry.startsWith(".git/"))) {
   throw new Error("Release asset unexpectedly contains .git metadata");
 }
 
+for (const disallowedEntry of [
+  "dev-helper.html",
+  "dev-helper.js",
+  "dev-reload.json",
+  "install-detector.js",
+]) {
+  if (entries.includes(disallowedEntry)) {
+    throw new Error(`Release asset unexpectedly contains dev-only file ${disallowedEntry}`);
+  }
+}
+
+if (manifest.host_permissions?.some((entry) => String(entry).includes("localhost:5173"))) {
+  throw new Error("Release asset manifest unexpectedly grants localhost host permissions");
+}
+
+if (Array.isArray(manifest.content_scripts) && manifest.content_scripts.length > 0) {
+  throw new Error("Release asset manifest unexpectedly contains content scripts");
+}
+
 const legacyLabelPattern = /Enkorstay|EnkorStay/;
 for (const file of ["background.js", "popup.js", "_locales/ko/messages.json"]) {
   const content = unzip(["-p", zipPath, file]);

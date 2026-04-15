@@ -40,6 +40,7 @@ const {
 const hostierClient = globalThis.HostierClientShared.createHostierClient({
   chromeApi: chrome,
   defaultHostierUrl: DEFAULT_HOSTIER_URL,
+  allowLocalhost: isDevTarget(),
   extensionTokenStorageKey: EXTENSION_TOKEN_STORAGE_KEY,
   connectionFlowStorageKey: CONNECTION_FLOW_STORAGE_KEY,
   hostierOriginStorageKey: HOSTIER_ORIGIN_STORAGE_KEY,
@@ -337,23 +338,16 @@ async function enterAwaitingSourceState(flow, {
   message,
   targetDisplayLabel = null,
 } = {}) {
-  const shouldAutoOpen = Boolean(sourceUrl) && !flow.sourceAutoOpenedAt;
   const nextFlow = {
     ...flow,
     step: "awaiting_source",
     openUrl: sourceUrl,
     message,
     targetDisplayLabel: targetDisplayLabel ?? flow.targetDisplayLabel ?? null,
-    sourceAutoOpenedAt: shouldAutoOpen
-      ? Date.now()
-      : flow.sourceAutoOpenedAt ?? null,
+    sourceAutoOpenedAt: flow.sourceAutoOpenedAt ?? null,
   };
 
   await setConnectionFlowState(nextFlow);
-
-  if (shouldAutoOpen && sourceUrl) {
-    openUrl(sourceUrl);
-  }
 
   return nextFlow;
 }

@@ -1,4 +1,7 @@
 {
+  "extName": {
+    "message": "Hostier"
+  },
   "extDescription": {
     "message": "Connect selected host platform accounts to Hostier for reservation sync"
   },
@@ -85,13 +88,22 @@
     "message": "Click Connect to open the website and sign in there.\nOnce sign-in is complete, the platform account connects to Hostier automatically."
   },
   "loginGateTitle": {
-    "message": "Sign in to Hostier before connecting platforms"
+    "message": "Sign in to your Hostier account first"
   },
   "loginGateBody": {
-    "message": "The extension only syncs platform cookies and tokens after it can verify the Hostier account that will receive them."
+    "message": "After sign-in, this popup lets you check connection status, grant platform access, and reconnect expired accounts."
   },
   "loginGatePrimary": {
-    "message": "Open Hostier"
+    "message": "Sign in to Hostier"
+  },
+  "loginGateFeatureStatus": {
+    "message": "Check platform connection status directly from the popup."
+  },
+  "loginGateFeaturePermission": {
+    "message": "Request the required platform access and start a connection flow here."
+  },
+  "loginGateFeatureReconnect": {
+    "message": "Reconnect expired accounts and use the 33m2 safe logout flow."
   },
   "consentTitle": {
     "message": "Consent is required before the first platform connection"

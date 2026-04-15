@@ -43,6 +43,10 @@
         ui.guardSecondary.hidden = true;
         ui.guardSecondary.onclick = null;
       }
+
+      if (typeof deps.renderViews === "function") {
+        deps.renderViews();
+      }
     }
 
     function clearGuardState() {
@@ -68,6 +72,11 @@
       setGuardState({
         title: deps.msg("loginGateTitle"),
         body: deps.msg("loginGateBody"),
+        items: [
+          deps.msg("loginGateFeatureStatus"),
+          deps.msg("loginGateFeaturePermission"),
+          deps.msg("loginGateFeatureReconnect"),
+        ],
         primaryLabel: deps.msg("loginGatePrimary"),
         primaryAction: () => deps.openUrl(deps.getHostierLoginUrl()),
         secondaryLabel: deps.msg("refreshStatus"),

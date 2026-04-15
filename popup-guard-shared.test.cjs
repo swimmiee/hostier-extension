@@ -150,3 +150,56 @@ test("showDisclosure still renders the guard when permission has not been grante
   assert.equal(ui.guardTitle.textContent, "connectDisclosureTitle:33m2");
   assert.equal(ui.guardPrimary.disabled, true);
 });
+
+test("showLoginGate rerenders immediately and explains the popup features", () => {
+  const calls = [];
+  const ui = createUi();
+  const controller = createPopupGuardController({
+    clearBlockingLoading: () => calls.push("clearBlockingLoading"),
+    clearStatus: () => calls.push("clearStatus"),
+    clearAwaitingSourceView: () => calls.push("clearAwaitingSourceView"),
+    setHeaderState: () => calls.push("setHeaderState"),
+    setStatusLoadState: (value) => calls.push(["setStatusLoadState", value]),
+    setGuardActive: (value) => calls.push(["setGuardActive", value]),
+    renderViews: () => calls.push("renderViews"),
+    openUrl: () => {},
+    getHostierLoginUrl: () => "https://hostier.ai/login",
+    initializePopup: async () => {},
+    document: {
+      body: {
+        classList: {
+          add() {},
+          remove() {},
+        },
+      },
+      createElement() {
+        return new FakeElement();
+      },
+    },
+    ui,
+    msg: (key) => key,
+  });
+
+  controller.showLoginGate();
+
+  assert.equal(ui.guard.hidden, false);
+  assert.equal(ui.guardTitle.textContent, "loginGateTitle");
+  assert.equal(ui.guardBody.textContent, "loginGateBody");
+  assert.equal(ui.guardList.hidden, false);
+  assert.deepEqual(ui.guardList.children.map((child) => child.textContent), [
+    "loginGateFeatureStatus",
+    "loginGateFeaturePermission",
+    "loginGateFeatureReconnect",
+  ]);
+  assert.equal(ui.guardPrimary.textContent, "loginGatePrimary");
+  assert.equal(ui.guardSecondary.textContent, "refreshStatus");
+  assert.deepEqual(calls, [
+    ["setStatusLoadState", "idle"],
+    "clearBlockingLoading",
+    "clearStatus",
+    "clearAwaitingSourceView",
+    "setHeaderState",
+    ["setGuardActive", true],
+    "renderViews",
+  ]);
+});

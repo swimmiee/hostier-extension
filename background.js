@@ -10,6 +10,18 @@ const HOSTIER_REQUEST_TIMEOUT_MS = 15000;
 const backgroundResumesInFlight = new Set();
 let localeMessages = null;
 
+function getExtensionConfig() {
+  const config = self.HOSTIER_EXTENSION_CONFIG;
+  if (!config?.hostierUrl) {
+    throw new Error("HOSTIER_EXTENSION_CONFIG.hostierUrl is not configured");
+  }
+  return config;
+}
+
+function isDevTarget() {
+  return getExtensionConfig().target === "dev";
+}
+
 const {
   isReconnectRequired,
   normalizeBulkReconnectPendingConnections,
@@ -21,6 +33,7 @@ const {
 const hostierClient = globalThis.HostierClientShared.createHostierClient({
   chromeApi: chrome,
   defaultHostierUrl: DEFAULT_HOSTIER_URL,
+  allowLocalhost: isDevTarget(),
   extensionTokenStorageKey: EXTENSION_TOKEN_STORAGE_KEY,
   connectionFlowStorageKey: CONNECTION_FLOW_STORAGE_KEY,
   hostierOriginStorageKey: HOSTIER_ORIGIN_STORAGE_KEY,
@@ -149,20 +162,18 @@ const background33m2Coordinator = create33m2BackgroundCoordinator({
   localLogout33m2: logout33m2,
 });
 
-function getExtensionConfig() {
-  const config = self.HOSTIER_EXTENSION_CONFIG;
-  if (!config?.hostierUrl) {
-    throw new Error("HOSTIER_EXTENSION_CONFIG.hostierUrl is not configured");
-  }
-  return config;
-}
-
 function getInstallDetectionMatches() {
+  if (!isDevTarget()) {
+    return [];
+  }
   const hostierMatch = `${getExtensionConfig().hostierUrl.replace(/\/$/, "")}/*`;
-  return [hostierMatch, "http://localhost:5173/*"];
+  return [...new Set([hostierMatch, "http://localhost:5173/*"])];
 }
 
 function isHostierInstallDetectionUrl(rawUrl) {
+  if (!isDevTarget()) {
+    return false;
+  }
   if (typeof rawUrl !== "string" || rawUrl.length === 0) {
     return false;
   }
@@ -175,10 +186,6 @@ function isHostierInstallDetectionUrl(rawUrl) {
   } catch {
     return false;
   }
-}
-
-function isDevTarget() {
-  return getExtensionConfig().target === "dev";
 }
 
 function interpolateMessage(template, placeholders = {}, substitutions = []) {
@@ -235,23 +242,16 @@ async function enterAwaitingSourceState(flow, {
   message,
   targetDisplayLabel = null,
 } = {}) {
-  const shouldAutoOpen = Boolean(sourceUrl) && !flow.sourceAutoOpenedAt;
   const nextFlow = {
     ...flow,
     step: "awaiting_source",
     openUrl: sourceUrl,
     message,
     targetDisplayLabel: targetDisplayLabel ?? flow.targetDisplayLabel ?? null,
-    sourceAutoOpenedAt: shouldAutoOpen
-      ? Date.now()
-      : flow.sourceAutoOpenedAt ?? null,
+    sourceAutoOpenedAt: flow.sourceAutoOpenedAt ?? null,
   };
 
   await setConnectionFlowState(nextFlow);
-
-  if (shouldAutoOpen && sourceUrl) {
-    await chrome.tabs.create({ url: sourceUrl });
-  }
 
   return nextFlow;
 }
@@ -456,6 +456,9 @@ async function ensureDevHelperTab() {
 }
 
 async function injectInstallDetector(tabId) {
+  if (!isDevTarget()) {
+    return;
+  }
   if (!Number.isInteger(tabId)) {
     return;
   }
@@ -479,6 +482,9 @@ async function maybeInjectInstallDetector(tabId, url) {
 }
 
 async function notifyOpenHostierTabs() {
+  if (!isDevTarget()) {
+    return;
+  }
   const tabs = await chrome.tabs.query({
     url: getInstallDetectionMatches(),
   });
@@ -487,6 +493,9 @@ async function notifyOpenHostierTabs() {
 }
 
 async function maybeInjectInstallDetectorIntoActiveTab(windowId) {
+  if (!isDevTarget()) {
+    return;
+  }
   if (!Number.isInteger(windowId) || windowId === chrome.windows.WINDOW_ID_NONE) {
     return;
   }
