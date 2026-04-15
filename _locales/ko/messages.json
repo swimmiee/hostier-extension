@@ -3,7 +3,7 @@
     "message": "호스티어 Hostier"
   },
   "extDescription": {
-    "message": "단기임대 호스트를 위한 예약 관리 시스템"
+    "message": "Hostier에서 호스트 플랫폼 계정을 연결하는 확장 프로그램"
   },
   "loginRequired": {
     "message": "로그인 필요"

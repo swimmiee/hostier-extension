@@ -3,7 +3,7 @@
     "message": "Hostier"
   },
   "extDescription": {
-    "message": "Connect selected host platform accounts to Hostier for reservation sync"
+    "message": "A Chrome extension for connecting host platform accounts in Hostier"
   },
   "loginRequired": {
     "message": "Login required"
