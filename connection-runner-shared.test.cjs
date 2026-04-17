@@ -121,3 +121,73 @@ test("runner skips session logout on first add when no matching connection exist
   assert.equal(fetchCalls[1].body.matchExistingConnectionOnly, undefined);
   assert.equal(successCalls.length, 1);
 });
+
+test("runner surfaces the NO_ROOMS_YET warning message on successful save", async () => {
+  const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ aid: "525191" })).toString("base64url");
+  const jwt = `${header}.${payload}.signature`;
+
+  const successCalls = [];
+  const seenMessageKeys = [];
+
+  const runner = createConnectionFlowRunner({
+    loadLocaleMessages: async () => {},
+    platformConfigs: {
+      THIRTY_THREE_M2: {
+        label: "33m2",
+        loginUrl: "https://web.33m2.co.kr/sign-in",
+        url: "https://web.33m2.co.kr/",
+        autoMaintainEnabled: true,
+      },
+    },
+    msg: (key, args) => {
+      seenMessageKeys.push({ key, args });
+      return key;
+    },
+    consentVersion: "v1",
+    log: () => {},
+    readPlatformAuthBundleWithRetry: async () => ({
+      ok: true,
+      token: jwt,
+      refreshToken: null,
+      firebaseSessionToken: "firebase-session-cookie",
+      tokenExpiresAt: "2026-05-14T00:00:00.000Z",
+      tabId: 9,
+    }),
+    validate33m2SessionInBrowser: async () => ({ ok: true, status: 200 }),
+    fetchHostier: async (_path, init) => {
+      const body = init?.body ? JSON.parse(init.body) : null;
+      if (body?.matchExistingConnectionOnly) {
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ code: "MATCHING_CONNECTION_NOT_FOUND" }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, warning: "NO_ROOMS_YET" }),
+      };
+    },
+    localLogout33m2: async () => ({ navigatedToLogin: false }),
+    enterAwaitingSourceState: async (_flow, params) => ({ step: "awaiting_source", ...params }),
+    setConnectionFlowState: async () => {},
+    pruneBulkReconnectPendingConnections: async () => [],
+    formatConnectionError: () => "error",
+    onAuthBundleMissing: async () => {},
+    onAwaiting: async () => {},
+    beforeCycle: async () => {},
+    onBlocking: async () => {},
+    onUnauthorized: async () => {},
+    onError: async () => {},
+    afterSuccessfulSave: async () => {},
+    onSuccess: async (message) => successCalls.push(message),
+  });
+
+  await runner({ platform: "THIRTY_THREE_M2", showDetailView: true });
+
+  assert.equal(successCalls.length, 1);
+  assert.equal(successCalls[0], "connectionCompleteNoRoomsYet");
+  assert.ok(seenMessageKeys.some((entry) => entry.key === "connectionCompleteNoRoomsYet"));
+});

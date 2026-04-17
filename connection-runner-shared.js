@@ -239,6 +239,10 @@
 
       console.log("[HOSTIER-TRACE] runner.saveResponse=ok", { status: response.status });
 
+      const saveBody = await response.json().catch(() => null);
+      const saveWarning =
+        saveBody && typeof saveBody.warning === "string" ? saveBody.warning : null;
+
       await deps.afterSuccessfulSave(baseFlow, { config });
 
       if (baseFlow.bulkReconnect) {
@@ -272,7 +276,9 @@
         return;
       }
 
-      const successMessage = deps.msg("connectionComplete", [config.label]);
+      const successMessage = saveWarning === "NO_ROOMS_YET"
+        ? deps.msg("connectionCompleteNoRoomsYet", [config.label])
+        : deps.msg("connectionComplete", [config.label]);
       await deps.setConnectionFlowState({
         ...baseFlow,
         step: "success",

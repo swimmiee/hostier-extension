@@ -349,5 +349,13 @@
         "content": "$1"
       }
     }
+  },
+  "connectionCompleteNoRoomsYet": {
+    "message": "$platform$ is connected, but no rooms are available yet. Once the listing review finishes on the $platform$ host page, reopen the Hostier popup and the rooms will be pulled in automatically.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
   }
 }
