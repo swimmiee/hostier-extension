@@ -27,6 +27,7 @@ const commonEntries = [
   "icon128.png",
   "icon16.png",
   "icon48.png",
+  "install-detector.js",
   "logo-mark.svg",
   "logo-wordmark.svg",
   "manifest.json",
@@ -43,7 +44,6 @@ const devOnlyEntries = [
   "dev-helper.html",
   "dev-helper.js",
   "dev-reload.json",
-  "install-detector.js",
 ];
 const packageEntries = [
   ...commonEntries,

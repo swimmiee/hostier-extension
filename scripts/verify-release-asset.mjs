@@ -33,7 +33,6 @@ for (const disallowedEntry of [
   "dev-helper.html",
   "dev-helper.js",
   "dev-reload.json",
-  "install-detector.js",
 ]) {
   if (entries.includes(disallowedEntry)) {
     throw new Error(`Release asset unexpectedly contains dev-only file ${disallowedEntry}`);
@@ -44,8 +43,9 @@ if (manifest.host_permissions?.some((entry) => String(entry).includes("localhost
   throw new Error("Release asset manifest unexpectedly grants localhost host permissions");
 }
 
-if (Array.isArray(manifest.content_scripts) && manifest.content_scripts.length > 0) {
-  throw new Error("Release asset manifest unexpectedly contains content scripts");
+const contentScriptMatches = (manifest.content_scripts ?? []).flatMap((entry) => entry?.matches ?? []);
+if (contentScriptMatches.some((match) => String(match).includes("localhost:5173"))) {
+  throw new Error("Release asset manifest unexpectedly grants localhost content script matches");
 }
 
 const legacyLabelPattern = /Enkorstay|EnkorStay/;
