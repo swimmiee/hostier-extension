@@ -167,3 +167,88 @@ test("auth bundle reader passes storeId to waitFor33m2SessionCookie as options",
     storeId: "store-9",
   });
 });
+
+test("auth bundle retry loop does not redirect to login on transient 33m2 401", async () => {
+  let validationCallCount = 0;
+  global.HostierExtensionShared.refresh33m2SessionInBrowser = async () => ({ ok: false, status: 401 });
+  global.HostierExtensionShared.validate33m2SessionInBrowser = async () => {
+    validationCallCount += 1;
+    if (validationCallCount === 1) {
+      return { ok: false, status: 401 };
+    }
+    return { ok: true, status: 200 };
+  };
+  global.HostierExtensionShared.getFirebaseRefreshToken = async () => "refresh-token";
+  global.HostierExtensionShared.read33m2AuthSessionInBrowser = async () => ({
+    refreshToken: "refresh-token",
+  });
+  global.HostierExtensionShared.findPreferred33m2Tab = async () => ({ id: 3 });
+  global.HostierExtensionShared.getCookieStoreIdForTab = async () => null;
+  global.HostierExtensionShared.waitFor33m2SessionCookie = async () => null;
+
+  const reader = createPlatformAuthBundleReader({
+    chromeApi: {
+      cookies: {
+        async get() {
+          return { value: "session-token", expirationDate: 1_800_000_000 };
+        },
+      },
+    },
+    platformConfigs: {
+      THIRTY_THREE_M2: {
+        url: "https://web.33m2.co.kr/",
+        name: "__Secure-session-token",
+        firebaseSessionName: "__firebase_session",
+        loginUrl: "https://web.33m2.co.kr/sign-in",
+        ttlDays: 30,
+        label: "33m2",
+      },
+    },
+    msg: (key) => key,
+  });
+
+  const result = await reader.readPlatformAuthBundleWithRetry("THIRTY_THREE_M2", {
+    allowMissingRefreshToken: true,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.token, "session-token");
+  assert.equal(validationCallCount, 2);
+});
+
+test("auth bundle retry loop still surfaces the login redirect on the final 33m2 401", async () => {
+  global.HostierExtensionShared.refresh33m2SessionInBrowser = async () => ({ ok: false, status: 401 });
+  global.HostierExtensionShared.validate33m2SessionInBrowser = async () => ({ ok: false, status: 401 });
+  global.HostierExtensionShared.findPreferred33m2Tab = async () => ({ id: 3 });
+  global.HostierExtensionShared.getCookieStoreIdForTab = async () => null;
+  global.HostierExtensionShared.waitFor33m2SessionCookie = async () => null;
+
+  const reader = createPlatformAuthBundleReader({
+    chromeApi: {
+      cookies: {
+        async get() {
+          return { value: "session-token", expirationDate: 1_800_000_000 };
+        },
+      },
+    },
+    platformConfigs: {
+      THIRTY_THREE_M2: {
+        url: "https://web.33m2.co.kr/",
+        name: "__Secure-session-token",
+        firebaseSessionName: "__firebase_session",
+        loginUrl: "https://web.33m2.co.kr/sign-in",
+        ttlDays: 30,
+        label: "33m2",
+      },
+    },
+    msg: (key) => key,
+  });
+
+  const result = await reader.readPlatformAuthBundleWithRetry("THIRTY_THREE_M2", {
+    allowMissingRefreshToken: true,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.openUrl, "https://web.33m2.co.kr/sign-in");
+  assert.equal(result.clearSession, true);
+});

@@ -96,6 +96,9 @@
       if (refreshAttempt?.status === 401 || refreshAttempt?.ok === false) {
         const browserSessionValidation = await validate33m2SessionInBrowser(tab.id);
         if (browserSessionValidation?.status === 401 || browserSessionValidation?.status === 403) {
+          if (options.isFinalAttempt === false) {
+            return { ok: false, error: msg("loginAndReturn33m2") };
+          }
           return {
             ok: false,
             error: msg("loginAndReturn33m2"),
@@ -123,9 +126,14 @@
     }
 
     async function readPlatformAuthBundleWithRetry(platform, options = {}) {
+      const maxAttempts = 3;
       let lastResult = null;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        lastResult = await readPlatformAuthBundle(platform, options);
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const isFinalAttempt = attempt === maxAttempts - 1;
+        lastResult = await readPlatformAuthBundle(platform, {
+          ...options,
+          isFinalAttempt,
+        });
         if (lastResult?.ok) {
           return lastResult;
         }
