@@ -6,6 +6,7 @@ const EXTENSION_TOKEN_STORAGE_KEY = "hostierExtensionToken";
 const CONNECTION_FLOW_STORAGE_KEY = "hostierConnectionFlowState";
 const HOSTIER_ORIGIN_STORAGE_KEY = "hostierPreferredOrigin";
 const DEFAULT_HOSTIER_URL = getExtensionConfig().hostierUrl.replace(/\/$/, "");
+const DEFAULT_HOSTIER_API_URL = (getExtensionConfig().hostierApiUrl || getExtensionConfig().hostierUrl).replace(/\/$/, "");
 const HOSTIER_REQUEST_TIMEOUT_MS = 15000;
 const backgroundResumesInFlight = new Set();
 let localeMessages = null;
@@ -33,6 +34,7 @@ const {
 const hostierClient = globalThis.HostierClientShared.createHostierClient({
   chromeApi: chrome,
   defaultHostierUrl: DEFAULT_HOSTIER_URL,
+  defaultHostierApiUrl: DEFAULT_HOSTIER_API_URL,
   allowLocalhost: isDevTarget(),
   extensionTokenStorageKey: EXTENSION_TOKEN_STORAGE_KEY,
   connectionFlowStorageKey: CONNECTION_FLOW_STORAGE_KEY,

@@ -11,7 +11,8 @@
     "tabs"
   ],
   "host_permissions": [
-    "http://localhost:5173/*"
+    "https://hostier.ai/*",
+    "https://api.hostier.ai/*"
   ],
   "optional_host_permissions": [
     "https://web.33m2.co.kr/*",
@@ -37,7 +38,7 @@
   "content_scripts": [
     {
       "matches": [
-        "http://localhost:5173/*"
+        "https://hostier.ai/*"
       ],
       "js": [
         "install-detector.js"

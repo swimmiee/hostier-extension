@@ -3,6 +3,7 @@
     const {
       chromeApi,
       defaultHostierUrl,
+      defaultHostierApiUrl = defaultHostierUrl,
       allowLocalhost = false,
       extensionTokenStorageKey,
       connectionFlowStorageKey,
@@ -12,6 +13,10 @@
     } = options;
 
     let currentHostierUrl = defaultHostierUrl;
+
+    function getHostierApiUrl() {
+      return defaultHostierApiUrl;
+    }
 
     async function withOperationTimeout(label, operation, timeoutMs = requestTimeoutMs) {
       let timeoutId = null;
@@ -158,7 +163,7 @@
           "exchangeExtensionTokenFromTab",
           () => chromeApi.scripting.executeScript({
             target: { tabId: tab.id },
-            args: [hostierUrl],
+            args: [defaultHostierApiUrl],
             func: async (baseUrl) => {
               try {
                 const response = await fetch(`${baseUrl}/api/auth/extension/exchange`, {
@@ -207,7 +212,7 @@
 
       const response = await withOperationTimeout(
         "exchangeExtensionToken",
-        () => fetch(`${hostierUrl}/api/auth/extension/exchange`, {
+        () => fetch(`${defaultHostierApiUrl}/api/auth/extension/exchange`, {
           method: "POST",
           credentials: "include",
         }),
@@ -244,7 +249,8 @@
       return withOperationTimeout(
         `fetchHostier ${path}`,
         async () => {
-          const hostierUrl = await resolveHostierUrl();
+          await resolveHostierUrl();
+          const hostierUrl = defaultHostierApiUrl;
           let token = await getExtensionToken();
           const headers = new Headers(options.headers || {});
           if (token) {
