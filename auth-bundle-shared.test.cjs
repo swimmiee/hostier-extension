@@ -156,6 +156,56 @@ test("auth bundle reader errors when neither refresh token nor firebase session 
   assert.equal(result.error, "missing33m2RefreshToken");
 });
 
+test("auth bundle reader skips the tab-side session refresh when skipSessionRefresh is set", async () => {
+  let refreshCallCount = 0;
+  let validateCallCount = 0;
+  global.HostierExtensionShared.refresh33m2SessionInBrowser = async () => {
+    refreshCallCount += 1;
+    return { ok: true, status: 200 };
+  };
+  global.HostierExtensionShared.validate33m2SessionInBrowser = async () => {
+    validateCallCount += 1;
+    return { ok: true, status: 200 };
+  };
+  global.HostierExtensionShared.waitFor33m2SessionCookie = async () => null;
+  global.HostierExtensionShared.getFirebaseRefreshToken = async () => "refresh-token";
+  global.HostierExtensionShared.read33m2AuthSessionInBrowser = async () => null;
+  global.HostierExtensionShared.findPreferred33m2Tab = async () => ({ id: 21 });
+
+  const reader = createPlatformAuthBundleReader({
+    chromeApi: {
+      cookies: {
+        async get(query) {
+          if (query.name === "__Secure-session-token") {
+            return { value: "session-token", expirationDate: 1_800_000_000 };
+          }
+          return null;
+        },
+      },
+    },
+    platformConfigs: {
+      THIRTY_THREE_M2: {
+        url: "https://web.33m2.co.kr/",
+        name: "__Secure-session-token",
+        firebaseSessionName: "__firebase_session",
+        loginUrl: "https://web.33m2.co.kr/sign-in",
+        ttlDays: 30,
+        label: "33m2",
+      },
+    },
+    msg: (key) => key,
+  });
+
+  const result = await reader.readPlatformAuthBundle("THIRTY_THREE_M2", {
+    skipSessionRefresh: true,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.refreshToken, "refresh-token");
+  assert.equal(refreshCallCount, 0);
+  assert.equal(validateCallCount, 0);
+});
+
 test("auth bundle reader forwards preferredStoreId when selecting the 33m2 tab", async () => {
   const findPreferred33m2TabCalls = [];
   global.HostierExtensionShared.findPreferred33m2Tab = async (options) => {

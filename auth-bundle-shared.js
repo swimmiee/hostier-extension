@@ -81,24 +81,26 @@
         };
       }
 
-      const refreshAttempt = await refresh33m2SessionInBrowser(tab.id);
-      const refreshedCookie = await waitFor33m2SessionCookie(config, cookie.value, 2000, storeId);
-      if (refreshedCookie?.value) {
-        cookie = refreshedCookie;
-        tokenExpiresAt = refreshedCookie.expirationDate
-          ? new Date(refreshedCookie.expirationDate * 1000).toISOString()
-          : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
-      }
+      if (options.skipSessionRefresh !== true) {
+        const refreshAttempt = await refresh33m2SessionInBrowser(tab.id);
+        const refreshedCookie = await waitFor33m2SessionCookie(config, cookie.value, 2000, storeId);
+        if (refreshedCookie?.value) {
+          cookie = refreshedCookie;
+          tokenExpiresAt = refreshedCookie.expirationDate
+            ? new Date(refreshedCookie.expirationDate * 1000).toISOString()
+            : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
+        }
 
-      if (refreshAttempt?.status === 401 || refreshAttempt?.ok === false) {
-        const browserSessionValidation = await validate33m2SessionInBrowser(tab.id);
-        if (browserSessionValidation?.status === 401 || browserSessionValidation?.status === 403) {
-          return {
-            ok: false,
-            error: msg("loginAndReturn33m2"),
-            openUrl: config.loginUrl,
-            clearSession: true,
-          };
+        if (refreshAttempt?.status === 401 || refreshAttempt?.ok === false) {
+          const browserSessionValidation = await validate33m2SessionInBrowser(tab.id);
+          if (browserSessionValidation?.status === 401 || browserSessionValidation?.status === 403) {
+            return {
+              ok: false,
+              error: msg("loginAndReturn33m2"),
+              openUrl: config.loginUrl,
+              clearSession: true,
+            };
+          }
         }
       }
 
