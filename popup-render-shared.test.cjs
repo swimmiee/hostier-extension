@@ -141,7 +141,7 @@ test("renderPlatformList shows grantPermission when the platform permission is m
   const [row] = ui.platformList.children;
   assert.equal(row.children[1].children[1].textContent, "연결과 자동 갱신을 위해 권한이 필요합니다.");
   assert.equal(row.children[2].textContent, "권한 허용");
-  assert.equal(row.children[2].className, "platform-action platform-action-cta");
+  assert.equal(row.children[2].className, "platform-action platform-action-cta platform-action-cta-secondary");
   row.onclick();
   assert.deepEqual(requested, ["THIRTY_THREE_M2"]);
 });

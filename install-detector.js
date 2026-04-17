@@ -33,6 +33,8 @@ function markExtensionInstalled() {
   );
 }
 
+const HOSTIER_WEB_REQUEST_OPEN_POPUP = "hostier-extension:request-open-popup";
+
 if (!globalThis[INSTALL_DETECTOR_FLAG]) {
   globalThis[INSTALL_DETECTOR_FLAG] = true;
 
@@ -41,4 +43,14 @@ if (!globalThis[INSTALL_DETECTOR_FLAG]) {
     markExtensionInstalled,
   );
   markExtensionInstalled();
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window) {
+      return;
+    }
+    const type = event.data?.type;
+    if (type === HOSTIER_WEB_REQUEST_OPEN_POPUP) {
+      chrome.runtime.sendMessage({ type: "HOSTIER_REQUEST_OPEN_POPUP" }).catch?.(() => {});
+    }
+  });
 }

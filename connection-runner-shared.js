@@ -132,9 +132,16 @@
           return;
         }
 
+        let shouldSkipAccountCycle = false;
         if (!preserveResponse.ok) {
           const errorBody = await preserveResponse.json().catch(() => null);
-          if (errorBody?.code !== "MATCHING_CONNECTION_NOT_FOUND") {
+          if (errorBody?.code === "MATCHING_CONNECTION_NOT_FOUND") {
+            shouldSkipAccountCycle = true;
+            deps.log?.("cycleSkipped", {
+              platform: flow.platform,
+              reason: "no_matching_connection",
+            });
+          } else {
             const message = deps.formatConnectionError(flow.platform, baseFlow, errorBody);
             await deps.setConnectionFlowState({ ...baseFlow, step: "error", message });
             await deps.onError(message, { baseFlow, clearBlocking: true, clearPrompt: true });
@@ -142,26 +149,28 @@
           }
         }
 
-        deps.log?.("logoutStart", { platform: flow.platform });
-        const logoutResult = await runWithStepTimeout(
-          "localLogout33m2",
-          () => deps.localLogout33m2(),
-          10000,
-        );
-        deps.log?.("awaitingSourceAfterLogout", { logoutResult });
+        if (!shouldSkipAccountCycle) {
+          deps.log?.("logoutStart", { platform: flow.platform });
+          const logoutResult = await runWithStepTimeout(
+            "localLogout33m2",
+            () => deps.localLogout33m2(),
+            10000,
+          );
+          deps.log?.("awaitingSourceAfterLogout", { logoutResult });
 
-        const nextFlow = await deps.enterAwaitingSourceState({
-          ...baseFlow,
-          sourceAutoOpenedAt: logoutResult?.navigatedToLogin ? Date.now() : baseFlow.sourceAutoOpenedAt,
-        }, {
-          sourceUrl: config.loginUrl,
-          message: baseFlow.connectionId
-            ? deps.msg("awaitingSourceHint")
-            : deps.msg("loginNext33m2Account"),
-        });
+          const nextFlow = await deps.enterAwaitingSourceState({
+            ...baseFlow,
+            sourceAutoOpenedAt: logoutResult?.navigatedToLogin ? Date.now() : baseFlow.sourceAutoOpenedAt,
+          }, {
+            sourceUrl: config.loginUrl,
+            message: baseFlow.connectionId
+              ? deps.msg("awaitingSourceHint")
+              : deps.msg("loginNext33m2Account"),
+          });
 
-        await deps.onAwaiting(nextFlow, { baseFlow, config, loadStatus: true, clearStatus: true });
-        return;
+          await deps.onAwaiting(nextFlow, { baseFlow, config, loadStatus: true, clearStatus: true });
+          return;
+        }
       }
 
       if (baseFlow.bulkReconnect && !analysis.matchedPendingConnection) {
@@ -182,7 +191,16 @@
       });
       await deps.onBlocking(connectingMessage, { baseFlow, config });
 
-      deps.log?.("connectStart", { platform: flow.platform });
+      deps.log?.("connectStart", {
+        platform: flow.platform,
+        hasRefreshToken: Boolean(authBundle.refreshToken),
+        hasFirebaseSessionToken: Boolean(authBundle.firebaseSessionToken),
+      });
+      console.log("[HOSTIER-TRACE] runner.saveStart", {
+        platform: flow.platform,
+        hasRefreshToken: Boolean(authBundle.refreshToken),
+        hasFirebaseSessionToken: Boolean(authBundle.firebaseSessionToken),
+      });
       const response = await runWithStepTimeout(
         "savePlatformConnection",
         () => deps.fetchHostier("/api/platform-connections", {
@@ -200,17 +218,26 @@
       );
 
       if (response.status === 401) {
+        console.log("[HOSTIER-TRACE] runner.saveResponse=401 -> onUnauthorized");
         await deps.onUnauthorized(baseFlow);
         return;
       }
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => null);
+        console.log("[HOSTIER-TRACE] runner.saveErrorBody", {
+          status: response.status,
+          errorBodyCode: errorBody?.code ?? null,
+          errorBodyError: errorBody?.error ?? null,
+          errorBody,
+        });
         const message = deps.formatConnectionError(flow.platform, baseFlow, errorBody);
         await deps.setConnectionFlowState({ ...baseFlow, step: "error", message });
         await deps.onError(message, { baseFlow, clearBlocking: true, clearPrompt: true });
         return;
       }
+
+      console.log("[HOSTIER-TRACE] runner.saveResponse=ok", { status: response.status });
 
       await deps.afterSuccessfulSave(baseFlow, { config });
 

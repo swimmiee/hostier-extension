@@ -95,6 +95,60 @@ const THIRTY_THREE_M2_BRIDGE_MESSAGE_TYPES = {
   SAFE_LOGOUT: "HOSTIER_SAFE_LOGOUT_33M2",
 };
 const HOSTIER_33M2_SILENT_SYNC_SAVED = "HOSTIER_33M2_SILENT_SYNC_SAVED";
+const HOSTIER_33M2_CONNECTION_TOAST = "HOSTIER_33M2_CONNECTION_TOAST";
+
+async function broadcastConnectionToastTo33m2Tabs(toastMessage) {
+  if (!toastMessage) {
+    return;
+  }
+
+  try {
+    const tabs = await chrome.tabs.query({ url: PLATFORM_CONFIGS.THIRTY_THREE_M2.origin });
+    await Promise.all(
+      tabs.map((tab) =>
+        chrome.tabs.sendMessage(tab.id, {
+          type: HOSTIER_33M2_CONNECTION_TOAST,
+          message: toastMessage,
+        }).catch?.(() => {}),
+      ),
+    );
+  } catch (error) {
+    console.warn("[hostier] Failed to broadcast connection toast:", error);
+  }
+}
+
+async function tryReopenExtensionPopup() {
+  try {
+    await chrome.action.openPopup();
+  } catch {
+    // openPopup requires a recent user gesture; silently ignore when unavailable.
+  }
+}
+
+async function setActionBadge(kind) {
+  const config = kind === "error"
+    ? { text: "!", color: "#b91c1c" }
+    : kind === "success"
+      ? { text: "✓", color: "#2f6f43" }
+      : { text: "", color: "#00000000" };
+
+  try {
+    await chrome.action.setBadgeText({ text: config.text });
+    if (config.text) {
+      await chrome.action.setBadgeBackgroundColor({ color: config.color });
+    }
+  } catch (error) {
+    console.warn("[hostier] Failed to set action badge:", error);
+  }
+}
+
+async function announceConnectionUpdate({ message, kind = "success" } = {}) {
+  await Promise.all([
+    broadcastConnectionToastTo33m2Tabs(message),
+    setActionBadge(kind),
+    tryReopenExtensionPopup(),
+  ]);
+}
 const backgroundConnectionFlowRunner = globalThis.HostierConnectionRunnerShared.createConnectionFlowRunner({
   loadLocaleMessages,
   platformConfigs: PLATFORM_CONFIGS,
@@ -115,14 +169,17 @@ const backgroundConnectionFlowRunner = globalThis.HostierConnectionRunnerShared.
   beforeCycle: async () => {},
   onBlocking: async () => {},
   onUnauthorized: async (baseFlow) => {
+    const errorMessage = msg("pleaseLogin");
     await setConnectionFlowState({
       ...baseFlow,
       step: "error",
-      message: msg("pleaseLogin"),
+      message: errorMessage,
     });
+    await announceConnectionUpdate({ message: errorMessage, kind: "error" });
   },
   onError: async (message, { baseFlow }) => {
     await setConnectionFlowState({ ...baseFlow, step: "error", message });
+    await announceConnectionUpdate({ message, kind: "error" });
   },
   afterSuccessfulSave: async () => {},
   onSuccess: async (message, { baseFlow }) => {
@@ -131,6 +188,7 @@ const backgroundConnectionFlowRunner = globalThis.HostierConnectionRunnerShared.
       step: "success",
       message,
     });
+    await announceConnectionUpdate({ message, kind: "success" });
   },
 });
 const background33m2Coordinator = create33m2BackgroundCoordinator({
@@ -145,6 +203,7 @@ const background33m2Coordinator = create33m2BackgroundCoordinator({
         type: HOSTIER_33M2_SILENT_SYNC_SAVED,
         payload,
       }).catch?.(() => {});
+      void announceConnectionUpdate({ message: "33m2 연결이 자동으로 동기화되었습니다.", kind: "success" });
     }
   },
   hasPermission: (origin) =>
@@ -524,9 +583,19 @@ chrome.runtime.onStartup?.addListener(() => {
 });
 
 chrome.permissions.onAdded.addListener((permissions) => {
+  void tryReopenExtensionPopup();
   void maybeContinuePendingConnectionFlow();
   if (Array.isArray(permissions?.origins) && permissions.origins.includes(PLATFORM_CONFIGS.THIRTY_THREE_M2.origin)) {
     void maybeInjectOpen33m2PageGuards();
+  }
+});
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === "HOSTIER_POPUP_OPENED") {
+    void setActionBadge(null);
+  }
+  if (message?.type === "HOSTIER_REQUEST_OPEN_POPUP") {
+    void tryReopenExtensionPopup();
   }
 });
 

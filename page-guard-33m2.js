@@ -12,6 +12,7 @@
   const MESSAGE_TYPES = {
     GET_BROWSER_SESSION: "HOSTIER_GET_33M2_BROWSER_SESSION",
     SAFE_LOGOUT: "HOSTIER_SAFE_LOGOUT_33M2",
+    CONNECTION_TOAST: "HOSTIER_33M2_CONNECTION_TOAST",
   };
   const CONTAINER_ID = "hostier-33m2-safe-logout-root";
 
@@ -23,9 +24,6 @@
   let overlayTitleEl = null;
   let overlayBodyEl = null;
   let overlaySafeButtonEl = null;
-  let overlayNativeButtonEl = null;
-  let pendingNativeLogoutTarget = null;
-  let allowNativeLogoutUntil = 0;
   let toastTimerId = 0;
 
   function sendRuntimeMessage(message) {
@@ -197,11 +195,6 @@
         .hostier-safe:focus-visible {
           background: #285f39;
         }
-
-        .hostier-native:hover,
-        .hostier-native:focus-visible {
-          background: #e5e7eb;
-        }
       </style>
       <div class="hostier-shell" data-hostier-33m2-control="true">
         <div class="hostier-toast" id="hostier-33m2-toast" data-hostier-33m2-control="true"></div>
@@ -214,7 +207,6 @@
             <div class="hostier-overlay-body" id="hostier-33m2-overlay-body" data-hostier-33m2-control="true"></div>
             <div class="hostier-overlay-actions" data-hostier-33m2-control="true">
               <button type="button" class="hostier-safe" id="hostier-33m2-overlay-safe" data-hostier-33m2-control="true">Hostier 안전 로그아웃</button>
-              <button type="button" class="hostier-native" id="hostier-33m2-overlay-native" data-hostier-33m2-control="true">33m2 로그아웃 계속</button>
             </div>
           </div>
         </div>
@@ -229,7 +221,6 @@
     overlayTitleEl = shadowRoot.getElementById("hostier-33m2-overlay-title");
     overlayBodyEl = shadowRoot.getElementById("hostier-33m2-overlay-body");
     overlaySafeButtonEl = shadowRoot.getElementById("hostier-33m2-overlay-safe");
-    overlayNativeButtonEl = shadowRoot.getElementById("hostier-33m2-overlay-native");
 
     overlayBackdropEl.addEventListener("click", (event) => {
       if (event.target === overlayBackdropEl) {
@@ -241,9 +232,6 @@
     });
     overlaySafeButtonEl.addEventListener("click", () => {
       void runSafeLogout();
-    });
-    overlayNativeButtonEl.addEventListener("click", () => {
-      continueNativeLogout();
     });
 
     return container;
@@ -260,7 +248,6 @@
   }
 
   function closeOverlay() {
-    pendingNativeLogoutTarget = null;
     setOverlayOpen(false);
   }
 
@@ -298,20 +285,6 @@
     showToast("안전 로그아웃을 완료했습니다.");
   }
 
-  function continueNativeLogout() {
-    const target = pendingNativeLogoutTarget;
-    pendingNativeLogoutTarget = null;
-    setOverlayOpen(false);
-    if (!target || !target.isConnected) {
-      return;
-    }
-
-    allowNativeLogoutUntil = Date.now() + 1000;
-    queueMicrotask(() => {
-      target.click();
-    });
-  }
-
   function isOwnControl(target) {
     return Boolean(target?.closest?.("[data-hostier-33m2-control='true']"));
   }
@@ -341,9 +314,8 @@
     return null;
   }
 
-  function showNativeLogoutIntercept(target) {
+  function showNativeLogoutIntercept() {
     getContainer();
-    pendingNativeLogoutTarget = target;
     if (overlayTitleEl) {
       overlayTitleEl.textContent = "Hostier 예약 동기화를 계속 자동으로 유지하려면 안전 로그아웃을 먼저 써주세요.";
     }
@@ -354,11 +326,6 @@
   }
 
   document.addEventListener("click", (event) => {
-    if (Date.now() < allowNativeLogoutUntil) {
-      allowNativeLogoutUntil = 0;
-      return;
-    }
-
     const target = findLogoutTarget(event.target);
     if (!target) {
       return;
@@ -367,12 +334,18 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     event.stopPropagation();
-    showNativeLogoutIntercept(target);
+    showNativeLogoutIntercept();
   }, true);
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeOverlay();
+    }
+  });
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type === MESSAGE_TYPES.CONNECTION_TOAST && typeof message.message === "string") {
+      showToast(message.message);
     }
   });
 

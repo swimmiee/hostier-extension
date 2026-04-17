@@ -107,32 +107,14 @@
         await getFirebaseRefreshToken(tab.id)
         || sessionData?.refreshToken
         || null;
-
-      if (!refreshToken) {
-        if (options.allowMissingRefreshToken) {
-          return {
-            ok: true,
-            token: cookie.value,
-            tokenExpiresAt,
-            refreshToken: null,
-            firebaseSessionToken: await readFirebaseSessionCookie(config, sessionData, storeId),
-            tabId: tab.id,
-          };
-        }
-
-        return {
-          ok: false,
-          error: msg("missing33m2RefreshToken"),
-          openUrl: config.homeUrl || config.url,
-        };
-      }
+      const firebaseSessionToken = await readFirebaseSessionCookie(config, sessionData, storeId);
 
       return {
         ok: true,
         token: cookie.value,
         tokenExpiresAt,
         refreshToken,
-        firebaseSessionToken: await readFirebaseSessionCookie(config, sessionData, storeId),
+        firebaseSessionToken,
         tabId: tab.id,
       };
     }

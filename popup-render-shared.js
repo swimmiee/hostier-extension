@@ -163,8 +163,9 @@
         row.append(body);
 
         const action = deps.document.createElement("span");
-        action.className = !hasPermission
-          ? "platform-action platform-action-cta"
+        const showCta = !hasPermission || !hasConnections;
+        action.className = showCta
+          ? `platform-action platform-action-cta${!hasPermission ? " platform-action-cta-secondary" : ""}`
           : "platform-action";
         action.textContent = deps.isStatusLoading()
           ? deps.msg("loadingShort")

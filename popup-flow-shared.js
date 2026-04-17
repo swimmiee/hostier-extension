@@ -312,9 +312,10 @@
       }
 
       if (flow.step === "error") {
+        await deps.clearConnectionFlowState();
         deps.clearBlockingLoading();
-        deps.showStatus("error", flow.message || "연결에 실패했습니다.");
         deps.clearAwaitingSourceView();
+        deps.clearStatus();
         return;
       }
 

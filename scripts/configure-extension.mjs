@@ -40,15 +40,13 @@ function buildManifest(hostierUrl, target) {
   const hostMatches = target === "dev"
     ? uniqueEntries([hostierMatch, localhostMatch])
     : [hostierMatch];
-  const contentScripts = target === "dev"
-    ? [
-      {
-        matches: hostMatches,
-        js: ["install-detector.js"],
-        run_at: "document_idle",
-      },
-    ]
-    : [];
+  const contentScripts = [
+    {
+      matches: hostMatches,
+      js: ["install-detector.js"],
+      run_at: "document_idle",
+    },
+  ];
 
   return {
     manifest_version: 3,
@@ -75,7 +73,7 @@ function buildManifest(hostierUrl, target) {
     background: {
       service_worker: "background.js",
     },
-    ...(contentScripts.length > 0 ? { content_scripts: contentScripts } : {}),
+    content_scripts: contentScripts,
   };
 }
 

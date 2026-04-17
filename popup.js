@@ -590,6 +590,7 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 async function bootstrapPopup() {
+  chrome.runtime.sendMessage({ type: "HOSTIER_POPUP_OPENED" }).catch?.(() => {});
   await loadLocaleMessages();
   await resolveHostierUrl();
   await refreshExtensionTokenSilently();

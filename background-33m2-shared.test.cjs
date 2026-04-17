@@ -4,7 +4,6 @@ const assert = require("node:assert/strict");
 const {
   create33m2BackgroundCoordinator,
   isWatched33m2Cookie,
-  build33m2SilentSyncKey,
 } = require("./background-33m2-shared.js");
 
 test("isWatched33m2Cookie only matches the 33m2 auth cookies on the 33m2 host", () => {
@@ -250,9 +249,3 @@ test("background coordinator skips cookie drift when no matching existing connec
   ]);
 });
 
-test("build33m2SilentSyncKey uses both storeId and accountKey", () => {
-  assert.equal(
-    build33m2SilentSyncKey("store-1", "33m2:123"),
-    "store-1:33m2:123",
-  );
-});

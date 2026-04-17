@@ -47,13 +47,6 @@ test("findBulkReconnectMatch matches reconnect items by normalized account key",
   });
 });
 
-test("isReconnectRequired treats expired, error, and reauth-needed connections as reconnectable", () => {
-  assert.equal(shared.isReconnectRequired({ status: "EXPIRED", requiresReauth: false }), true);
-  assert.equal(shared.isReconnectRequired({ status: "ERROR", requiresReauth: false }), true);
-  assert.equal(shared.isReconnectRequired({ status: "ACTIVE", requiresReauth: true }), true);
-  assert.equal(shared.isReconnectRequired({ status: "ACTIVE", requiresReauth: false }), false);
-});
-
 test("localLogout33m2 returns even when firebase local-state cleanup stalls", async () => {
   const originalChrome = global.chrome;
   global.chrome = {
