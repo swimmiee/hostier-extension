@@ -132,16 +132,9 @@
           return;
         }
 
-        let shouldSkipAccountCycle = false;
         if (!preserveResponse.ok) {
           const errorBody = await preserveResponse.json().catch(() => null);
-          if (errorBody?.code === "MATCHING_CONNECTION_NOT_FOUND") {
-            shouldSkipAccountCycle = true;
-            deps.log?.("cycleSkipped", {
-              platform: flow.platform,
-              reason: "no_matching_connection",
-            });
-          } else {
+          if (errorBody?.code !== "MATCHING_CONNECTION_NOT_FOUND") {
             const message = deps.formatConnectionError(flow.platform, baseFlow, errorBody);
             await deps.setConnectionFlowState({ ...baseFlow, step: "error", message });
             await deps.onError(message, { baseFlow, clearBlocking: true, clearPrompt: true });
@@ -149,28 +142,26 @@
           }
         }
 
-        if (!shouldSkipAccountCycle) {
-          deps.log?.("logoutStart", { platform: flow.platform });
-          const logoutResult = await runWithStepTimeout(
-            "localLogout33m2",
-            () => deps.localLogout33m2(),
-            10000,
-          );
-          deps.log?.("awaitingSourceAfterLogout", { logoutResult });
+        deps.log?.("logoutStart", { platform: flow.platform });
+        const logoutResult = await runWithStepTimeout(
+          "localLogout33m2",
+          () => deps.localLogout33m2(),
+          10000,
+        );
+        deps.log?.("awaitingSourceAfterLogout", { logoutResult });
 
-          const nextFlow = await deps.enterAwaitingSourceState({
-            ...baseFlow,
-            sourceAutoOpenedAt: logoutResult?.navigatedToLogin ? Date.now() : baseFlow.sourceAutoOpenedAt,
-          }, {
-            sourceUrl: config.loginUrl,
-            message: baseFlow.connectionId
-              ? deps.msg("awaitingSourceHint")
-              : deps.msg("loginNext33m2Account"),
-          });
+        const nextFlow = await deps.enterAwaitingSourceState({
+          ...baseFlow,
+          sourceAutoOpenedAt: logoutResult?.navigatedToLogin ? Date.now() : baseFlow.sourceAutoOpenedAt,
+        }, {
+          sourceUrl: config.loginUrl,
+          message: baseFlow.connectionId
+            ? deps.msg("awaitingSourceHint")
+            : deps.msg("loginNext33m2Account"),
+        });
 
-          await deps.onAwaiting(nextFlow, { baseFlow, config, loadStatus: true, clearStatus: true });
-          return;
-        }
+        await deps.onAwaiting(nextFlow, { baseFlow, config, loadStatus: true, clearStatus: true });
+        return;
       }
 
       if (baseFlow.bulkReconnect && !analysis.matchedPendingConnection) {

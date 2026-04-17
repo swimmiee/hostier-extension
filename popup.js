@@ -308,7 +308,6 @@ function scheduleAwaitingSourcePoll() {
       const flow = activeAwaitingSourceFlow;
       const authBundle = await readPlatformAuthBundleWithRetry(flow.platform, {
         allowMissingRefreshToken: Boolean(flow.connectionId || flow.bulkReconnect),
-        skipSessionRefresh: true,
       });
       if (authBundle?.ok) {
         await connectPlatform(flow.platform, {

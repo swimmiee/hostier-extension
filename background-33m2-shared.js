@@ -95,10 +95,7 @@
     }
 
     async function readAuthBundle(options = {}) {
-      return deps.readPlatformAuthBundleWithRetry("THIRTY_THREE_M2", {
-        skipSessionRefresh: true,
-        ...options,
-      });
+      return deps.readPlatformAuthBundleWithRetry("THIRTY_THREE_M2", options);
     }
 
     async function fetchConnections() {
