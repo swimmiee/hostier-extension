@@ -118,3 +118,52 @@ test("auth bundle reader forwards preferredStoreId when selecting the 33m2 tab",
     { preferredStoreId: "store-2" },
   ]);
 });
+
+test("auth bundle reader passes storeId to waitFor33m2SessionCookie as options", async () => {
+  const waitCalls = [];
+  global.HostierExtensionShared.getCookieStoreIdForTab = async () => "store-9";
+  global.HostierExtensionShared.findPreferred33m2Tab = async () => ({ id: 42 });
+  global.HostierExtensionShared.waitFor33m2SessionCookie = async (
+    config,
+    previousValue,
+    options,
+  ) => {
+    waitCalls.push({ config: config.name, previousValue, options });
+    return null;
+  };
+
+  const reader = createPlatformAuthBundleReader({
+    chromeApi: {
+      cookies: {
+        async get() {
+          return {
+            value: "session-token",
+            expirationDate: 1_800_000_000,
+          };
+        },
+      },
+    },
+    platformConfigs: {
+      THIRTY_THREE_M2: {
+        url: "https://web.33m2.co.kr/",
+        name: "__Secure-session-token",
+        firebaseSessionName: "__firebase_session",
+        loginUrl: "https://web.33m2.co.kr/sign-in",
+        ttlDays: 30,
+        label: "33m2",
+      },
+    },
+    msg: (key) => key,
+  });
+
+  await reader.readPlatformAuthBundle("THIRTY_THREE_M2", {
+    allowMissingRefreshToken: true,
+  });
+
+  assert.equal(waitCalls.length, 1);
+  assert.equal(waitCalls[0].previousValue, "session-token");
+  assert.deepEqual(waitCalls[0].options, {
+    timeoutMs: 2000,
+    storeId: "store-9",
+  });
+});

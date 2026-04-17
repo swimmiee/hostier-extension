@@ -82,7 +82,10 @@
       }
 
       const refreshAttempt = await refresh33m2SessionInBrowser(tab.id);
-      const refreshedCookie = await waitFor33m2SessionCookie(config, cookie.value, 2000, storeId);
+      const refreshedCookie = await waitFor33m2SessionCookie(config, cookie.value, {
+        timeoutMs: 2000,
+        storeId,
+      });
       if (refreshedCookie?.value) {
         cookie = refreshedCookie;
         tokenExpiresAt = refreshedCookie.expirationDate
