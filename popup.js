@@ -137,7 +137,7 @@ const PLATFORM_CONFIGS = {
     name: "host.access.token",
     loginUrl: "https://host.enko.kr/signin",
     ttlDays: 365,
-    label: "Enkostay",
+    label: "엔코스테이",
     autoMaintainEnabled: false,
   },
   LIVEANYWHERE: {
@@ -148,7 +148,7 @@ const PLATFORM_CONFIGS = {
       "https://account.liveanywhere.me/?returnUrl=https://console.liveanywhere.me",
     homeUrl: "https://console.liveanywhere.me/host",
     ttlDays: 30,
-    label: "LiveAnywhere",
+    label: "리브애니웨어",
     autoMaintainEnabled: false,
   },
 };

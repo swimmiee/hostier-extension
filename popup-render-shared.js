@@ -163,11 +163,22 @@
         row.append(body);
 
         const action = deps.document.createElement("span");
-        const showCta = !hasPermission || !hasConnections;
-        action.className = showCta
-          ? `platform-action platform-action-cta${!hasPermission ? " platform-action-cta-secondary" : ""}`
-          : "platform-action";
-        action.textContent = deps.isStatusLoading()
+        // Three pill states:
+        //   no permission → beige "권한허용"
+        //   has permission + already managed → beige "관리"
+        //   has permission + nothing connected → accent green "연결하기"
+        // Loading stays plain gray text.
+        const loading = deps.isStatusLoading();
+        const useSecondaryPill = !loading && (!hasPermission || hasConnections);
+        const usePrimaryPill = !loading && hasPermission && !hasConnections;
+        action.className = [
+          "platform-action",
+          usePrimaryPill || useSecondaryPill ? "platform-action-cta" : "",
+          useSecondaryPill ? "platform-action-cta-secondary" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        action.textContent = loading
           ? deps.msg("loadingShort")
           : !hasPermission
             ? deps.msg("grantPermission")
