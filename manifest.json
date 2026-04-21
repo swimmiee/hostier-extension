@@ -17,7 +17,8 @@
   "optional_host_permissions": [
     "https://web.33m2.co.kr/*",
     "https://host.enko.kr/*",
-    "https://*.liveanywhere.me/*"
+    "https://*.liveanywhere.me/*",
+    "https://zaritalk.com/*"
   ],
   "icons": {
     "16": "icon16.png",

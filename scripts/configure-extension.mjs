@@ -16,6 +16,7 @@ const PLATFORM_HOST_PERMISSIONS = [
   "https://web.33m2.co.kr/*",
   "https://host.enko.kr/*",
   "https://*.liveanywhere.me/*",
+  "https://zaritalk.com/*",
 ];
 
 function normalizeHostierUrl(rawUrl) {

@@ -84,6 +84,16 @@ const PLATFORM_CONFIGS = {
     label: "리브애니웨어",
     autoMaintainEnabled: false,
   },
+  ZARITALK: {
+    url: "https://zaritalk.com/",
+    origin: "https://zaritalk.com/*",
+    name: "zaritalkToken",
+    loginUrl: "https://zaritalk.com/lessor/login",
+    homeUrl: "https://zaritalk.com/host",
+    ttlDays: 180,
+    label: "자리톡",
+    autoMaintainEnabled: false,
+  },
 };
 
 const { readPlatformAuthBundleWithRetry } = createPlatformAuthBundleReader({
