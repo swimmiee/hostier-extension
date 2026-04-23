@@ -173,6 +173,13 @@ const HOSTIER_33M2_SILENT_SYNC_SAVED = "HOSTIER_33M2_SILENT_SYNC_SAVED";
 
 const ui = {
   userEmail: document.getElementById("userEmail"),
+  menu: document.getElementById("menu"),
+  menuTrigger: document.getElementById("menuTrigger"),
+  menuList: document.getElementById("menuList"),
+  menuGotoWebsite: document.getElementById("menuGotoWebsite"),
+  menuGotoWebsiteLabel: document.getElementById("menuGotoWebsiteLabel"),
+  menuVersionInfoLabel: document.getElementById("menuVersionInfoLabel"),
+  menuVersionValue: document.getElementById("menuVersionValue"),
   status: document.getElementById("status"),
   awaitingView: document.getElementById("awaitingView"),
   awaitingKicker: document.getElementById("awaitingKicker"),
@@ -578,6 +585,48 @@ const {
 } = popupFlowController;
 
 
+function isMenuOpen() {
+  return ui.menuTrigger.getAttribute("aria-expanded") === "true";
+}
+
+function setMenuOpen(open) {
+  ui.menuList.hidden = !open;
+  ui.menuTrigger.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function closeMenu() {
+  if (!isMenuOpen()) return;
+  setMenuOpen(false);
+}
+
+function toggleMenu() {
+  setMenuOpen(!isMenuOpen());
+}
+
+ui.menuTrigger.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleMenu();
+});
+
+ui.menuGotoWebsite.addEventListener("click", () => {
+  const target = hostierClient.getHostierUrl() || DEFAULT_HOSTIER_URL;
+  openUrl(target);
+  closeMenu();
+});
+
+document.addEventListener("click", (event) => {
+  if (!isMenuOpen()) return;
+  if (ui.menu.contains(event.target)) return;
+  closeMenu();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isMenuOpen()) {
+    closeMenu();
+    ui.menuTrigger.focus();
+  }
+});
+
 ui.detailBack.addEventListener("click", () => {
   currentPlatform = null;
   renderViews();
@@ -614,6 +663,11 @@ async function bootstrapPopup() {
   ui.privacyLink.href = getPrivacyPolicyUrl();
   ui.listTitle.textContent = msg("platformListTitle");
   ui.listIntro.textContent = msg("platformListIntro");
+
+  ui.menuTrigger.setAttribute("aria-label", msg("menuOpen"));
+  ui.menuGotoWebsiteLabel.textContent = msg("menuGotoWebsite");
+  ui.menuVersionInfoLabel.textContent = msg("menuVersionInfo");
+  ui.menuVersionValue.textContent = `v${chrome.runtime.getManifest().version}`;
 
   statusLoadState = "loading";
   renderViews();

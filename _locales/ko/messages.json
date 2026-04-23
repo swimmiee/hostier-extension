@@ -357,5 +357,14 @@
         "content": "$1"
       }
     }
+  },
+  "menuOpen": {
+    "message": "메뉴 열기"
+  },
+  "menuGotoWebsite": {
+    "message": "호스티어 웹사이트로 이동"
+  },
+  "menuVersionInfo": {
+    "message": "버전 정보"
   }
 }

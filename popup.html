@@ -7,9 +7,42 @@
 <body>
   <div class="container">
     <header class="header">
-      <div>
+      <div class="header-brand">
         <img class="logo" src="logo-wordmark.svg" alt="Hostier 로고">
         <p class="email" id="userEmail"></p>
+      </div>
+
+      <div class="menu" id="menu">
+        <button
+          class="menu-trigger"
+          id="menuTrigger"
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-controls="menuList"
+          aria-label="메뉴 열기"
+        >
+          <svg class="menu-trigger-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <path d="M4 6h12M4 10h12M4 14h12" stroke-linecap="round"></path>
+          </svg>
+        </button>
+
+        <div class="menu-panel" id="menuList" role="menu" aria-labelledby="menuTrigger" hidden>
+          <button class="menu-item" id="menuGotoWebsite" type="button" role="menuitem">
+            <span class="menu-item-label" id="menuGotoWebsiteLabel"></span>
+            <svg class="menu-item-glyph" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+              <path d="M5 3h6v6" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="M10.5 3.5L3.5 10.5" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </button>
+
+          <div class="menu-divider" role="separator" aria-hidden="true"></div>
+
+          <div class="menu-item menu-item-static" role="none">
+            <span class="menu-item-label" id="menuVersionInfoLabel"></span>
+            <span class="menu-item-tag" id="menuVersionValue"></span>
+          </div>
+        </div>
       </div>
     </header>
 
