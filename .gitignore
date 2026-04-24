@@ -6,3 +6,6 @@ browser-data/
 .env*.local
 screenshots/
 dev-reload.json
+
+# Claude Code session state
+.omc/
