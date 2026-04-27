@@ -1,7 +1,7 @@
 {
   "name": "hostier-extension",
   "private": true,
-  "version": "2.1.7",
+  "version": "2.2.0",
   "scripts": {
     "test": "node --test flow-shared.test.cjs hostier-client-shared.test.cjs connection-flow-shared.test.cjs connection-runner-shared.test.cjs auth-bundle-shared.test.cjs popup-render-shared.test.cjs popup-flow-shared.test.cjs popup-guard-shared.test.cjs background-33m2-shared.test.cjs page-guard-33m2-shared.test.cjs",
     "dev": "node ./scripts/extension-dev.mjs",

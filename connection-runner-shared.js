@@ -88,7 +88,7 @@
         const nextFlow = await deps.enterAwaitingSourceState(baseFlow, {
           sourceUrl: config.loginUrl,
           message: baseFlow.connectionId
-            ? deps.msg("awaitingSourceHint")
+            ? deps.msg("awaitingSourceHint", [config.label])
             : baseFlow.bulkReconnect
               ? getBulkReconnectWaitingMessage(deps.msg, baseFlow.pendingConnections)
               : deps.msg("loginNext33m2Account"),
@@ -164,7 +164,7 @@
           }, {
             sourceUrl: config.loginUrl,
             message: baseFlow.connectionId
-              ? deps.msg("awaitingSourceHint")
+              ? deps.msg("awaitingSourceHint", [config.label])
               : deps.msg("loginNext33m2Account"),
           });
 

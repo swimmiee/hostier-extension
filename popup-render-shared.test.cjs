@@ -145,3 +145,96 @@ test("renderPlatformList shows grantPermission when the platform permission is m
   row.onclick();
   assert.deepEqual(requested, ["THIRTY_THREE_M2"]);
 });
+
+test("renderPlatformList shows green 다시 연결 CTA when only expired connections remain", () => {
+  const ui = {
+    platformList: new FakeElement(),
+  };
+  const controller = createPopupRenderController({
+    document: {
+      createElement: (tagName) => new FakeElement(tagName),
+    },
+    ui,
+    platformConfigs: {
+      THIRTY_THREE_M2: {
+        label: "33m2",
+      },
+    },
+    connectionDateTimeFormatter: { format: () => "" },
+    connectionDateFormatter: { format: () => "" },
+    msg: (key) => {
+      if (key === "reconnect") return "다시 연결";
+      if (key === "connect") return "연결하기";
+      if (key === "expired") return "만료";
+      if (key === "loadingShort") return "불러오는 중";
+      if (key === "grantPermission") return "권한 허용";
+      return key;
+    },
+    getConnections: () => [{
+      id: "conn-1",
+      displayLabel: "dannylisa67@gmail.com",
+      status: "EXPIRED",
+      accountKey: "dannylisa67@gmail.com",
+      autoMaintainEnabled: true,
+    }],
+    getPlatformPermissionState: () => true,
+    requestPlatformPermission: () => {},
+    setCurrentPlatform: () => {},
+    showDisclosure: () => {},
+    isStatusLoading: () => false,
+    isReconnectRequired: (connection) => connection.status === "EXPIRED",
+    normalizeBulkReconnectPendingConnections: (connections) => connections ?? [],
+  });
+
+  controller.renderPlatformList();
+
+  const [row] = ui.platformList.children;
+  const action = row.children[2];
+  assert.equal(action.textContent, "다시 연결");
+  assert.equal(action.className, "platform-action platform-action-cta");
+});
+
+test("renderPlatformList keeps beige 관리 pill when at least one active connection exists", () => {
+  const ui = {
+    platformList: new FakeElement(),
+  };
+  const controller = createPopupRenderController({
+    document: {
+      createElement: (tagName) => new FakeElement(tagName),
+    },
+    ui,
+    platformConfigs: {
+      THIRTY_THREE_M2: {
+        label: "33m2",
+      },
+    },
+    connectionDateTimeFormatter: { format: () => "" },
+    connectionDateFormatter: { format: () => "" },
+    msg: (key) => {
+      if (key === "reconnect") return "다시 연결";
+      if (key === "connect") return "연결하기";
+      if (key === "expired") return "만료";
+      if (key === "loadingShort") return "불러오는 중";
+      if (key === "grantPermission") return "권한 허용";
+      return key;
+    },
+    getConnections: () => [
+      { id: "conn-1", displayLabel: "a", status: "ACTIVE", accountKey: "a", autoMaintainEnabled: true },
+      { id: "conn-2", displayLabel: "b", status: "EXPIRED", accountKey: "b", autoMaintainEnabled: true },
+    ],
+    getPlatformPermissionState: () => true,
+    requestPlatformPermission: () => {},
+    setCurrentPlatform: () => {},
+    showDisclosure: () => {},
+    isStatusLoading: () => false,
+    isReconnectRequired: (connection) => connection.status === "EXPIRED",
+    normalizeBulkReconnectPendingConnections: (connections) => connections ?? [],
+  });
+
+  controller.renderPlatformList();
+
+  const [row] = ui.platformList.children;
+  const action = row.children[2];
+  assert.equal(action.textContent, "관리");
+  assert.equal(action.className, "platform-action platform-action-cta platform-action-cta-secondary");
+});

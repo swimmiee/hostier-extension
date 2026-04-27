@@ -267,10 +267,20 @@
     "message": "다시 연결"
   },
   "awaitingSourceHint": {
-    "message": "33m2에서 이 계정으로 로그인한 뒤 돌아와 주세요."
+    "message": "$platform$에서 이 계정으로 로그인한 뒤 돌아와 주세요.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
   },
   "awaitingSourceGenericTitle": {
-    "message": "다음 33m2 계정"
+    "message": "다음 $platform$ 계정",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
   },
   "awaitingSourceReconnectBody": {
     "message": "$platform$에서 $account$ 계정으로 로그인한 뒤 확장으로 돌아와 주세요.",

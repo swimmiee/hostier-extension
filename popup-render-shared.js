@@ -106,16 +106,16 @@
       return null;
     }
 
+    function getAwaitingSourcePlatformLabel(flow) {
+      return deps.platformConfigs[flow?.platform]?.label || "";
+    }
+
     function getAwaitingSourceBody(flow) {
       if (typeof flow?.message === "string" && flow.message.length > 0) {
         return flow.message;
       }
 
-      if (getAwaitingSourceTargetDisplayLabel(flow)) {
-        return deps.msg("awaitingSourceHint");
-      }
-
-      return deps.msg("awaitingSourceHint");
+      return deps.msg("awaitingSourceHint", [getAwaitingSourcePlatformLabel(flow)]);
     }
 
     function renderPlatformList() {
@@ -125,6 +125,8 @@
       for (const [platform, config] of Object.entries(deps.platformConfigs)) {
         const hasConnections = hasExistingConnections(platform);
         const hasPermission = deps.getPlatformPermissionState(platform);
+        const listStateClass = getListStateClass(platform);
+        const needsReconnect = hasPermission && listStateClass === "expired";
         const row = deps.document.createElement("button");
         row.type = "button";
         row.className = "platform-row";
@@ -144,7 +146,7 @@
         };
 
         const state = deps.document.createElement("span");
-        state.className = `state-dot ${getListStateClass(platform)}`;
+        state.className = `state-dot ${listStateClass}`;
         row.append(state);
 
         const body = deps.document.createElement("div");
@@ -163,14 +165,15 @@
         row.append(body);
 
         const action = deps.document.createElement("span");
-        // Three pill states:
+        // Pill states:
         //   no permission → beige "권한허용"
-        //   has permission + already managed → beige "관리"
+        //   has permission + only expired connections → accent green "다시 연결"
+        //   has permission + already managed (has active) → beige "관리"
         //   has permission + nothing connected → accent green "연결하기"
         // Loading stays plain gray text.
         const loading = deps.isStatusLoading();
-        const useSecondaryPill = !loading && (!hasPermission || hasConnections);
-        const usePrimaryPill = !loading && hasPermission && !hasConnections;
+        const useSecondaryPill = !loading && (!hasPermission || (hasConnections && !needsReconnect));
+        const usePrimaryPill = !loading && hasPermission && (!hasConnections || needsReconnect);
         action.className = [
           "platform-action",
           usePrimaryPill || useSecondaryPill ? "platform-action-cta" : "",
@@ -182,6 +185,8 @@
           ? deps.msg("loadingShort")
           : !hasPermission
             ? deps.msg("grantPermission")
+          : needsReconnect
+            ? deps.msg("reconnect")
           : hasConnections
             ? "관리"
             : deps.msg("connect");
@@ -303,7 +308,7 @@
 
       const targetDisplayLabel =
         getAwaitingSourceTargetDisplayLabel(flow)
-        || deps.msg("awaitingSourceGenericTitle");
+        || deps.msg("awaitingSourceGenericTitle", [getAwaitingSourcePlatformLabel(flow)]);
       ui.awaitingView.hidden = false;
       ui.listView.hidden = true;
       ui.detailView.hidden = true;

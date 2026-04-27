@@ -267,10 +267,20 @@
     "message": "Reconnect"
   },
   "awaitingSourceHint": {
-    "message": "Sign in to 33m2 with this account, then come back."
+    "message": "Sign in to $platform$ with this account, then come back.",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
   },
   "awaitingSourceGenericTitle": {
-    "message": "Next 33m2 account"
+    "message": "Next $platform$ account",
+    "placeholders": {
+      "platform": {
+        "content": "$1"
+      }
+    }
   },
   "awaitingSourceReconnectBody": {
     "message": "Sign in to $platform$ with the $account$ account, then return to the extension.",
