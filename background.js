@@ -1,4 +1,4 @@
-importScripts("config.js", "flow-shared.js", "hostier-client-shared.js", "auth-bundle-shared.js", "connection-flow-shared.js", "connection-runner-shared.js", "background-33m2-shared.js");
+importScripts("config.js", "flow-shared.js", "hostier-client-shared.js", "auth-bundle-shared.js", "connection-flow-shared.js", "connection-runner-shared.js", "background-33m2-shared.js", "coupang-import-shared.js");
 
 const DEV_HELPER_PATH = "dev-helper.html";
 const CONSENT_VERSION = "extension-consent-v1";
@@ -694,3 +694,50 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 if (isDevTarget()) {
   void ensureDevHelperTab();
 }
+
+// --- Coupang import orchestration -------------------------------------------
+const coupangState = self.CoupangImport.createState();
+const coupangDeps = {
+  tabsCreate: (opts) => chrome.tabs.create(opts),
+  tabsRemove: (id) => chrome.tabs.remove(id),
+  executeScript: (opts) => chrome.scripting.executeScript(opts),
+  permissionsContains: (q) => new Promise((res) => chrome.permissions.contains(q, res)),
+  permissionsRequest: (q) => new Promise((res) => chrome.permissions.request(q, res)),
+  sendToWebTab: async (msg) => {
+    const tabs = await chrome.tabs.query({ url: getInstallDetectionMatches() });
+    for (const tab of tabs) {
+      if (Number.isInteger(tab.id)) chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+    }
+  },
+  setTimer: (fn, ms) => setTimeout(fn, ms),
+  clearTimer: (id) => clearTimeout(id),
+};
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (!msg || typeof msg.type !== "string") return;
+  if (msg.type === "HOSTIER_COUPANG_IMPORT_START") {
+    self.CoupangImport.startImport({ runId: msg.runId, from: msg.from, to: msg.to }, coupangDeps, coupangState)
+      .catch((err) => self.CoupangImport.handleError({ runId: msg.runId, code: "UNKNOWN", message: err?.message }, coupangDeps, coupangState));
+    return;
+  }
+  if (msg.type === "HOSTIER_COUPANG_PROGRESS") {
+    self.CoupangImport.handleProgress(msg, coupangDeps, coupangState);
+    return;
+  }
+  if (msg.type === "HOSTIER_COUPANG_RESULT") {
+    self.CoupangImport.handleResult(msg, coupangDeps, coupangState);
+    return;
+  }
+  if (msg.type === "HOSTIER_COUPANG_ERROR") {
+    self.CoupangImport.handleError(msg, coupangDeps, coupangState);
+    return;
+  }
+});
+
+chrome.tabs.onRemoved.addListener((closedTabId) => {
+  for (const [runId, run] of coupangState.runs) {
+    if (run.tabId === closedTabId) {
+      self.CoupangImport.handleError({ runId, code: "ABORTED", message: "tab closed" }, coupangDeps, coupangState);
+    }
+  }
+});
