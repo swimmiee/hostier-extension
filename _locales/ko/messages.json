@@ -374,6 +374,9 @@
   "menuGotoWebsite": {
     "message": "호스티어 웹사이트로 이동"
   },
+  "menuCoupangImport": {
+    "message": "쿠팡 구매 가져오기"
+  },
   "menuVersionInfo": {
     "message": "버전 정보"
   }

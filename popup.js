@@ -178,6 +178,8 @@ const ui = {
   menuList: document.getElementById("menuList"),
   menuGotoWebsite: document.getElementById("menuGotoWebsite"),
   menuGotoWebsiteLabel: document.getElementById("menuGotoWebsiteLabel"),
+  menuCoupangImport: document.getElementById("menuCoupangImport"),
+  menuCoupangImportLabel: document.getElementById("menuCoupangImportLabel"),
   menuVersionInfoLabel: document.getElementById("menuVersionInfoLabel"),
   menuVersionValue: document.getElementById("menuVersionValue"),
   status: document.getElementById("status"),
@@ -614,6 +616,12 @@ ui.menuGotoWebsite.addEventListener("click", () => {
   closeMenu();
 });
 
+ui.menuCoupangImport.addEventListener("click", () => {
+  const base = hostierClient.getHostierUrl() || DEFAULT_HOSTIER_URL;
+  openUrl(`${base}/flow/sheet?import=coupang`);
+  closeMenu();
+});
+
 document.addEventListener("click", (event) => {
   if (!isMenuOpen()) return;
   if (ui.menu.contains(event.target)) return;
@@ -666,6 +674,7 @@ async function bootstrapPopup() {
 
   ui.menuTrigger.setAttribute("aria-label", msg("menuOpen"));
   ui.menuGotoWebsiteLabel.textContent = msg("menuGotoWebsite");
+  ui.menuCoupangImportLabel.textContent = msg("menuCoupangImport");
   ui.menuVersionInfoLabel.textContent = msg("menuVersionInfo");
   ui.menuVersionValue.textContent = `v${chrome.runtime.getManifest().version}`;
 
