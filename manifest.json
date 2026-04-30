@@ -18,7 +18,8 @@
     "https://web.33m2.co.kr/*",
     "https://host.enko.kr/*",
     "https://*.liveanywhere.me/*",
-    "https://zaritalk.com/*"
+    "https://zaritalk.com/*",
+    "https://*.coupang.com/*"
   ],
   "icons": {
     "16": "icon16.png",
