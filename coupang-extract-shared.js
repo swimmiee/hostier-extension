@@ -25,12 +25,16 @@
     return false;
   }
 
-  function flattenOrders(nextData) {
+  function flattenOrders(nextData, dateRange) {
     const orders = nextData?.props?.pageProps?.domains?.desktopOrder?.orderList ?? [];
     const rows = [];
     for (const order of orders) {
       if (order.allCanceled) continue;
       const occurredAt = ymdInKst(order.orderedAt);
+      if (dateRange) {
+        if (dateRange.from && occurredAt < dateRange.from) continue;
+        if (dateRange.to && occurredAt > dateRange.to) continue;
+      }
       const seen = new Set();
       const groups = order.deliveryGroupList ?? [];
       for (const g of groups) {
@@ -51,6 +55,14 @@
       }
     }
     return rows;
+  }
+
+  function isPageBeforeRange(nextData, dateRange) {
+    if (!dateRange?.from) return false;
+    const orders = nextData?.props?.pageProps?.domains?.desktopOrder?.orderList ?? [];
+    if (orders.length === 0) return false;
+    const oldestMs = Math.min(...orders.map((o) => o.orderedAt));
+    return ymdInKst(oldestMs) < dateRange.from;
   }
 
   function getPagination(nextData) {
@@ -98,6 +110,7 @@
     ymdInKst,
     isRefunded,
     flattenOrders,
+    isPageBeforeRange,
     getPagination,
     isLoggedIn,
     parseNextDataFromHTML,

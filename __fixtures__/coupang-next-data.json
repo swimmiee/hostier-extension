@@ -40,6 +40,24 @@
               ]
             },
             {
+              "orderId": 19099999999999,
+              "orderedAt": 1769000000000,
+              "title": "오래된 주문",
+              "totalProductPrice": 1000,
+              "allCanceled": false,
+              "deliveryGroupList": [{
+                "shipmentBoxId": "OLD",
+                "productList": [{
+                  "productId": 99, "vendorItemId": 999, "itemId": 999,
+                  "productName": "오래된 상품",
+                  "vendorItemName": "오래된 상품",
+                  "quantity": 1, "unitPrice": 1000, "discountedUnitPrice": 1000, "combinedUnitPrice": 1000,
+                  "allCanceled": false, "partialCanceled": false, "cancelQuantity": 0,
+                  "cancelReturnBundleId": null, "cancelReturnStatus": null, "returnReceipted": false, "exchanged": false
+                }]
+              }]
+            },
+            {
               "orderId": 19100000000002,
               "orderedAt": 1777400000000,
               "title": "환불상품",

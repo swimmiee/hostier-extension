@@ -40,7 +40,7 @@ test("flattenOrders amountKrw = combinedUnitPrice × quantity", () => {
 test("parseNextDataFromHTML extracts the JSON", () => {
   const html = `<html><head></head><body><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(fixture)}</script></body></html>`;
   const parsed = shared.parseNextDataFromHTML(html);
-  assert.equal(parsed.props.pageProps.domains.desktopOrder.orderList.length, 2);
+  assert.equal(parsed.props.pageProps.domains.desktopOrder.orderList.length, 3);
 });
 
 test("getPagination returns hasNext/nextPageIndex", () => {
@@ -58,4 +58,36 @@ test("isLoggedIn", () => {
 test("buildOrderListUrl with date range and pageIndex", () => {
   const url = shared.buildOrderListUrl({ from: "2026-04-01", to: "2026-04-30", pageIndex: 2 });
   assert.equal(url, "https://mc.coupang.com/ssr/desktop/order/list?searchType=DATE&startSearchDate=2026-04-01&endSearchDate=2026-04-30&pageIndex=2");
+});
+
+test("flattenOrders excludes orders outside dateRange", () => {
+  const rows = shared.flattenOrders(fixture, { from: "2026-04-01", to: "2026-04-30" });
+  assert.equal(rows.find((r) => r.vendorItemId === 999), undefined);
+  assert.ok(rows.length > 0);
+});
+
+test("isPageBeforeRange detects when oldest order is before from", () => {
+  const synth = { props: { pageProps: { domains: { desktopOrder: { orderList: [
+    { orderId: 1, orderedAt: 1769000000000, allCanceled: false, deliveryGroupList: [] }
+  ] } } } } };
+  assert.equal(shared.isPageBeforeRange(synth, { from: "2026-04-01" }), true);
+});
+
+test("isPageBeforeRange returns false when newest order is in range", () => {
+  const synth = { props: { pageProps: { domains: { desktopOrder: { orderList: [
+    { orderId: 1, orderedAt: 1777520000000, allCanceled: false, deliveryGroupList: [] }
+  ] } } } } };
+  assert.equal(shared.isPageBeforeRange(synth, { from: "2026-04-01" }), false);
+});
+
+test("isPageBeforeRange returns false when no from is provided", () => {
+  const synth = { props: { pageProps: { domains: { desktopOrder: { orderList: [
+    { orderId: 1, orderedAt: 1769000000000, allCanceled: false, deliveryGroupList: [] }
+  ] } } } } };
+  assert.equal(shared.isPageBeforeRange(synth, {}), false);
+});
+
+test("isPageBeforeRange returns false on empty page", () => {
+  const synth = { props: { pageProps: { domains: { desktopOrder: { orderList: [] } } } } };
+  assert.equal(shared.isPageBeforeRange(synth, { from: "2026-04-01" }), false);
 });
