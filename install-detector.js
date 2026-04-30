@@ -53,4 +53,25 @@ if (!globalThis[INSTALL_DETECTOR_FLAG]) {
       chrome.runtime.sendMessage({ type: "HOSTIER_REQUEST_OPEN_POPUP" }).catch?.(() => {});
     }
   });
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window) return;
+    const t = event.data?.type;
+    if (t === "HOSTIER_COUPANG_IMPORT_START") {
+      const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      chrome.runtime.sendMessage({
+        type: "HOSTIER_COUPANG_IMPORT_START",
+        runId,
+        from: event.data.from,
+        to: event.data.to,
+      }).catch?.(() => {});
+    }
+  });
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || typeof msg.type !== "string") return;
+    if (msg.type.startsWith("HOSTIER_COUPANG_IMPORT_")) {
+      window.postMessage(msg, window.location.origin);
+    }
+  });
 }
