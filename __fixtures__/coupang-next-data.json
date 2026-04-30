@@ -1,0 +1,68 @@
+{
+  "props": {
+    "pageProps": {
+      "context": { "isLogin": true },
+      "domains": {
+        "desktopOrder": {
+          "orderList": [
+            {
+              "orderId": 19100000000001,
+              "orderedAt": 1777520000000,
+              "title": "샴푸 외 1건",
+              "totalProductPrice": 21800,
+              "allCanceled": false,
+              "deliveryGroupList": [
+                {
+                  "shipmentBoxId": "B1",
+                  "productList": [
+                    { "productId": 1, "vendorItemId": 100, "itemId": 10,
+                      "productName": "샴푸 1L", "vendorItemName": "샴푸 1L, 1개",
+                      "quantity": 1, "unitPrice": 8900, "discountedUnitPrice": 8900, "combinedUnitPrice": 8900,
+                      "allCanceled": false, "partialCanceled": false, "cancelQuantity": 0,
+                      "cancelReturnBundleId": null, "cancelReturnStatus": null, "returnReceipted": false, "exchanged": false },
+                    { "productId": 2, "vendorItemId": 200, "itemId": 20,
+                      "productName": "수건 4장", "vendorItemName": "수건 4장, 화이트",
+                      "quantity": 1, "unitPrice": 12900, "discountedUnitPrice": 12900, "combinedUnitPrice": 12900,
+                      "allCanceled": false, "partialCanceled": false, "cancelQuantity": 0,
+                      "cancelReturnBundleId": null, "cancelReturnStatus": null, "returnReceipted": false, "exchanged": false }
+                  ]
+                },
+                {
+                  "shipmentBoxId": "B2",
+                  "productList": [
+                    { "productId": 1, "vendorItemId": 100, "itemId": 10,
+                      "productName": "샴푸 1L", "vendorItemName": "샴푸 1L, 1개",
+                      "quantity": 1, "unitPrice": 8900, "discountedUnitPrice": 8900, "combinedUnitPrice": 8900,
+                      "allCanceled": false, "partialCanceled": false, "cancelQuantity": 0,
+                      "cancelReturnBundleId": null, "cancelReturnStatus": null, "returnReceipted": false, "exchanged": false }
+                  ]
+                }
+              ]
+            },
+            {
+              "orderId": 19100000000002,
+              "orderedAt": 1777400000000,
+              "title": "환불상품",
+              "totalProductPrice": 5000,
+              "allCanceled": false,
+              "deliveryGroupList": [
+                {
+                  "shipmentBoxId": "B3",
+                  "productList": [
+                    { "productId": 3, "vendorItemId": 300, "itemId": 30,
+                      "productName": "환불된 양초", "vendorItemName": "환불된 양초",
+                      "quantity": 1, "unitPrice": 5000, "discountedUnitPrice": 5000, "combinedUnitPrice": 5000,
+                      "allCanceled": true, "partialCanceled": false, "cancelQuantity": 1,
+                      "cancelReturnBundleId": "X", "cancelReturnStatus": "REFUNDED", "returnReceipted": true, "exchanged": false }
+                  ]
+                }
+              ]
+            }
+          ],
+          "orderPagination": { "hasPrev": false, "prevYear": 0, "prevPageIndex": 0, "hasNext": true, "nextYear": 0, "nextPageIndex": 1 },
+          "search": { "keyword": "", "periodYear": 0 }
+        }
+      }
+    }
+  }
+}
