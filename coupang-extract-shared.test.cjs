@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const shared = require("./coupang-extract-shared.js");
-const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "__fixtures__/coupang-next-data.json"), "utf8"));
+const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/coupang-next-data.json"), "utf8"));
 
 test("flattenOrders dedupes by (orderId, vendorItemId)", () => {
   const rows = shared.flattenOrders(fixture);
