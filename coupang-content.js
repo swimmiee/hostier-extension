@@ -20,10 +20,28 @@
     return;
   }
 
-  function readCurrentPageJSON() {
-    const el = document.getElementById("__NEXT_DATA__");
-    if (!el) throw new Error("__NEXT_DATA__ not in DOM");
-    return JSON.parse(el.textContent || "");
+  // Content script may run while the page is still mid-load (programmatic
+  // executeScript fires once the document is parseable, but Coupang's
+  // SSR + Akamai challenge sometimes takes a beat to settle). Poll for the
+  // hydration script for up to ~12s before giving up.
+  async function readCurrentPageJSON() {
+    for (let i = 0; i < 24; i++) {
+      const el = document.getElementById("__NEXT_DATA__");
+      if (el && el.textContent) {
+        try {
+          return JSON.parse(el.textContent);
+        } catch {
+          // Tag exists but isn't valid JSON yet — keep waiting.
+        }
+      }
+      // Bail early if the page redirected somewhere unexpected
+      // (login, Akamai block, …). Those pages won't ever have __NEXT_DATA__.
+      if (!location.host.endsWith("coupang.com")) {
+        throw new Error(`unexpected host: ${location.host}`);
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    throw new Error("__NEXT_DATA__ not in DOM");
   }
 
   async function fetchPageJSON(url) {
@@ -35,7 +53,7 @@
 
   try {
     const allRows = [];
-    let pageData = readCurrentPageJSON();
+    let pageData = await readCurrentPageJSON();
 
     if (!E.isLoggedIn(pageData)) {
       chrome.runtime.sendMessage({ type: "HOSTIER_COUPANG_ERROR", code: "LOGIN_REQUIRED", runId: RUN_ID });
