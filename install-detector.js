@@ -55,56 +55,44 @@ if (!globalThis[INSTALL_DETECTOR_FLAG]) {
   });
 
   // Coupang permission must be requested while a user gesture is alive.
-  // Web posts a same-origin message synchronously inside the click handler;
-  // calling chrome.permissions.request from THIS handler preserves the gesture.
-  // If we forwarded to the background first, the gesture would be lost and
-  // chrome would silently deny without showing the permission prompt.
+  // Synchronous callback form (no await) to keep the activation window open.
   const COUPANG_HOST = "https://*.coupang.com/*";
 
-  function requestCoupangPermission() {
-    return new Promise((resolve) => {
-      try {
-        chrome.permissions.request({ origins: [COUPANG_HOST] }, (granted) => resolve(Boolean(granted)));
-      } catch {
-        resolve(false);
-      }
-    });
-  }
-
-  function hasCoupangPermission() {
-    return new Promise((resolve) => {
-      try {
-        chrome.permissions.contains({ origins: [COUPANG_HOST] }, (granted) => resolve(Boolean(granted)));
-      } catch {
-        resolve(false);
-      }
-    });
-  }
-
-  window.addEventListener("message", async (event) => {
-    if (event.source !== window) return;
-    const t = event.data?.type;
-    if (t !== "HOSTIER_COUPANG_IMPORT_START") return;
-
-    let granted = await hasCoupangPermission();
-    if (!granted) {
-      granted = await requestCoupangPermission();
-    }
-    if (!granted) {
-      window.postMessage({
-        type: "HOSTIER_COUPANG_IMPORT_ERROR",
-        code: "PERMISSION_DENIED",
-      }, window.location.origin);
-      return;
-    }
-
+  function startImportAfterPermission(eventData) {
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     chrome.runtime.sendMessage({
       type: "HOSTIER_COUPANG_IMPORT_START",
       runId,
-      from: event.data.from,
-      to: event.data.to,
+      from: eventData.from,
+      to: eventData.to,
     }).catch?.(() => {});
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type !== "HOSTIER_COUPANG_IMPORT_START") return;
+
+    const data = event.data;
+    // Diagnostic: visible in the page's DevTools console when something goes wrong.
+    console.info("[hostier] coupang import start received, requesting permission");
+
+    chrome.permissions.request({ origins: [COUPANG_HOST] }, (granted) => {
+      if (chrome.runtime.lastError) {
+        console.warn("[hostier] permissions.request error:", chrome.runtime.lastError.message);
+      }
+      console.info("[hostier] permission request result:", granted);
+
+      if (!granted) {
+        window.postMessage({
+          type: "HOSTIER_COUPANG_IMPORT_ERROR",
+          code: "PERMISSION_DENIED",
+          message: chrome.runtime.lastError?.message,
+        }, window.location.origin);
+        return;
+      }
+
+      startImportAfterPermission(data);
+    });
   });
 
   chrome.runtime.onMessage.addListener((msg) => {
