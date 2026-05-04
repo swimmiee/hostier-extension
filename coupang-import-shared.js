@@ -28,7 +28,12 @@
     const tab = await deps.tabsCreate({ url, active: false });
     state.runs.get(runId).tabId = tab.id;
 
-    // Seed the run id + range into the tab so the content script can pick them up.
+    // Seed the run id + range into the tab so the content script can pick
+    // them up. Both injections must target the same world (ISOLATED, the
+    // default). Previously this used `world: "MAIN"`, but the file-based
+    // injection below runs in ISOLATED — which has its own `window`,
+    // so the content script saw `undefined` for these globals and aborted
+    // with NO_RUN_ID before doing any work.
     await deps.executeScript({
       target: { tabId: tab.id },
       func: function (runId, range) {
@@ -36,7 +41,6 @@
         window.__HOSTIER_COUPANG_RANGE = range;
       },
       args: [runId, { from, to }],
-      world: "MAIN",
     }).catch(() => {});
 
     await deps.executeScript({
