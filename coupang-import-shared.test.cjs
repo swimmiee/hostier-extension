@@ -19,13 +19,17 @@ function deps(overrides) {
   };
 }
 
-test("startImport rejects when an import is already running", async () => {
+test("startImport clears stale runs from previous attempts", async () => {
   const state = shared.createState();
   shared.markRunning(state, "run-1");
-  await assert.rejects(
-    () => shared.startImport({ runId: "run-2", from: "2026-04-01", to: "2026-04-30" }, deps(), state),
-    /already running/i,
-  );
+  state.runs.get("run-1").tabId = 555;
+  state.runs.get("run-1").timeoutId = 99;
+  const d = deps();
+  await shared.startImport({ runId: "run-2", from: "2026-04-01", to: "2026-04-30" }, d, state);
+  // Stale run was cleaned up; new run is the only entry.
+  assert.equal(state.runs.size, 1);
+  assert.ok(state.runs.has("run-2"));
+  assert.equal(d.calls.tabsRemove[0], 555); // stale tab closed
 });
 
 test("startImport opens grant window when permission missing", async () => {

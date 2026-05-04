@@ -52,10 +52,20 @@
     }, 90_000);
   }
 
-  async function startImport({ runId, from, to }, deps, state) {
-    if (state.runs.size > 0) {
-      throw new Error("import already running");
+  function clearStaleRuns(deps, state) {
+    // A previous attempt may have left state.runs non-empty (tab closed
+    // mid-flight, content script never reported). Force-clean before starting
+    // a new import — the user clicking 가져오기 again should always work.
+    for (const [, run] of state.runs) {
+      if (run.timeoutId) deps.clearTimer(run.timeoutId);
+      if (run.tabId) deps.tabsRemove(run.tabId).catch(() => {});
     }
+    state.runs.clear();
+    state.pendingGrant = null;
+  }
+
+  async function startImport({ runId, from, to }, deps, state) {
+    clearStaleRuns(deps, state);
     const granted = await deps.permissionsContains({ origins: [COUPANG_HOST] });
     if (!granted) {
       state.pendingGrant = { runId, from, to };

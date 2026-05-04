@@ -702,12 +702,30 @@ const coupangDeps = {
   tabsRemove: (id) => chrome.tabs.remove(id),
   executeScript: (opts) => chrome.scripting.executeScript(opts),
   permissionsContains: (q) => new Promise((res) => chrome.permissions.contains(q, res)),
-  openGrantWindow: () => chrome.windows.create({
-    url: chrome.runtime.getURL("grant-coupang.html"),
-    type: "popup",
-    width: 420,
-    height: 320,
-  }),
+  openGrantWindow: async () => {
+    // Size + position roughly to match the toolbar popup so it feels like the
+    // extension UI, not a separate browser window.
+    const W = 360;
+    const H = 280;
+    let left = 20;
+    let top = 80;
+    try {
+      const [last] = await chrome.windows.getAll({ windowTypes: ["normal"] });
+      if (last && Number.isFinite(last.left) && Number.isFinite(last.width)) {
+        left = Math.max(0, (last.left ?? 0) + (last.width ?? 1200) - W - 20);
+        top = (last.top ?? 0) + 80;
+      }
+    } catch {}
+    return chrome.windows.create({
+      url: chrome.runtime.getURL("grant-coupang.html"),
+      type: "popup",
+      width: W,
+      height: H,
+      left,
+      top,
+      focused: true,
+    });
+  },
   sendToWebTab: async (msg) => {
     const tabs = await chrome.tabs.query({ url: getInstallDetectionMatches() });
     for (const tab of tabs) {
