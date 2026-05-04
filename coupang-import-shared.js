@@ -101,16 +101,21 @@
     if (!run) return;
     deps.clearTimer(run.timeoutId);
     deps.sendToWebTab({ type: "HOSTIER_COUPANG_IMPORT_RESULT", rows });
-    if (run.tabId) await deps.tabsRemove(run.tabId).catch(() => {});
+    // Delete BEFORE tabsRemove. Otherwise chrome.tabs.onRemoved fires while
+    // the runId is still in state.runs and our onRemoved listener mistakes
+    // the planned close for a user abort, blasting an ABORTED error toast.
+    const tabId = run.tabId;
     state.runs.delete(runId);
+    if (tabId) await deps.tabsRemove(tabId).catch(() => {});
   }
 
   async function handleError({ runId, code, message }, deps, state) {
     const run = state.runs.get(runId);
     deps.clearTimer(run?.timeoutId);
     deps.sendToWebTab({ type: "HOSTIER_COUPANG_IMPORT_ERROR", code, message });
-    if (run?.tabId) await deps.tabsRemove(run.tabId).catch(() => {});
+    const tabId = run?.tabId;
     state.runs.delete(runId);
+    if (tabId) await deps.tabsRemove(tabId).catch(() => {});
   }
 
   return {
