@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const shared = require("./coupang-import-shared.js");
 
 function deps(overrides) {
-  const calls = { tabsCreate: [], tabsRemove: [], execScripts: [], postMessages: [] };
+  const calls = { tabsCreate: [], tabsRemove: [], execScripts: [], postMessages: [], grantWindowOpens: 0 };
   return {
     calls,
     tabsCreate: async (opts) => { calls.tabsCreate.push(opts); return { id: 999, url: opts.url }; },
@@ -14,7 +14,7 @@ function deps(overrides) {
     setTimer: (fn, ms) => { calls.timer = ms; return 1; },
     clearTimer: () => {},
     permissionsContains: async () => true,
-    permissionsRequest: async () => true,
+    openGrantWindow: async () => { calls.grantWindowOpens += 1; },
     ...overrides,
   };
 }
@@ -28,15 +28,13 @@ test("startImport rejects when an import is already running", async () => {
   );
 });
 
-test("startImport requests permission if not granted", async () => {
+test("startImport opens grant window when permission missing", async () => {
   const state = shared.createState();
-  let requested = false;
-  const d = deps({
-    permissionsContains: async () => false,
-    permissionsRequest: async () => { requested = true; return true; },
-  });
-  await shared.startImport({ runId: "r", from: "2026-04-01", to: "2026-04-30" }, d, state).catch(() => {});
-  assert.equal(requested, true);
+  const d = deps({ permissionsContains: async () => false });
+  await shared.startImport({ runId: "r", from: "2026-04-01", to: "2026-04-30" }, d, state);
+  assert.equal(d.calls.grantWindowOpens, 1);
+  assert.equal(d.calls.tabsCreate.length, 0);
+  assert.deepEqual(state.pendingGrant, { runId: "r", from: "2026-04-01", to: "2026-04-30" });
 });
 
 test("startImport opens hidden tab and injects extractor + content scripts", async () => {
@@ -55,6 +53,26 @@ test("startImport opens hidden tab and injects extractor + content scripts", asy
     "coupang-extract-shared.js",
     "coupang-content.js",
   ]);
+});
+
+test("handlePermissionGranted resumes import using pending range", async () => {
+  const state = shared.createState();
+  state.pendingGrant = { runId: "r2", from: "2026-04-01", to: "2026-04-30" };
+  const d = deps();
+  await shared.handlePermissionGranted(d, state);
+  assert.equal(d.calls.tabsCreate.length, 1);
+  assert.match(d.calls.tabsCreate[0].url, /startSearchDate=2026-04-01/);
+  assert.equal(state.pendingGrant, null);
+});
+
+test("handlePermissionDeclined posts PERMISSION_DENIED and clears pending", async () => {
+  const state = shared.createState();
+  state.pendingGrant = { runId: "r3", from: "2026-04-01", to: "2026-04-30" };
+  const d = deps();
+  await shared.handlePermissionDeclined(d, state);
+  assert.equal(d.calls.postMessages[0].type, "HOSTIER_COUPANG_IMPORT_ERROR");
+  assert.equal(d.calls.postMessages[0].code, "PERMISSION_DENIED");
+  assert.equal(state.pendingGrant, null);
 });
 
 test("handleResult forwards rows to web tab and closes hidden tab", async () => {

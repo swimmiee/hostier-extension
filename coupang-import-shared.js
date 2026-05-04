@@ -6,7 +6,7 @@
   const COUPANG_HOST = "https://*.coupang.com/*";
 
   function createState() {
-    return { runs: new Map() };
+    return { runs: new Map(), pendingGrant: null };
   }
 
   function markRunning(state, runId) {
@@ -22,18 +22,7 @@
     return u.toString();
   }
 
-  async function startImport({ runId, from, to }, deps, state) {
-    if (state.runs.size > 0) {
-      throw new Error("import already running");
-    }
-    const granted = await deps.permissionsContains({ origins: [COUPANG_HOST] });
-    if (!granted) {
-      const ok = await deps.permissionsRequest({ origins: [COUPANG_HOST] });
-      if (!ok) {
-        deps.sendToWebTab({ type: "HOSTIER_COUPANG_IMPORT_ERROR", code: "PERMISSION_DENIED" });
-        return;
-      }
-    }
+  async function beginImportFlow({ runId, from, to }, deps, state) {
     markRunning(state, runId);
     const url = buildStartUrl({ from, to });
     const tab = await deps.tabsCreate({ url, active: false });
@@ -63,6 +52,31 @@
     }, 90_000);
   }
 
+  async function startImport({ runId, from, to }, deps, state) {
+    if (state.runs.size > 0) {
+      throw new Error("import already running");
+    }
+    const granted = await deps.permissionsContains({ origins: [COUPANG_HOST] });
+    if (!granted) {
+      state.pendingGrant = { runId, from, to };
+      await deps.openGrantWindow();
+      return;
+    }
+    await beginImportFlow({ runId, from, to }, deps, state);
+  }
+
+  async function handlePermissionGranted(deps, state) {
+    const pending = state.pendingGrant;
+    state.pendingGrant = null;
+    if (!pending) return;
+    await beginImportFlow(pending, deps, state);
+  }
+
+  async function handlePermissionDeclined(deps, state) {
+    state.pendingGrant = null;
+    deps.sendToWebTab({ type: "HOSTIER_COUPANG_IMPORT_ERROR", code: "PERMISSION_DENIED" });
+  }
+
   async function handleProgress({ runId, current, total }, deps, state) {
     if (!state.runs.has(runId)) return;
     deps.sendToWebTab({ type: "HOSTIER_COUPANG_IMPORT_PROGRESS", current, total });
@@ -87,6 +101,8 @@
 
   return {
     createState, markRunning, buildStartUrl,
-    startImport, handleProgress, handleResult, handleError,
+    startImport, beginImportFlow,
+    handlePermissionGranted, handlePermissionDeclined,
+    handleProgress, handleResult, handleError,
   };
 });

@@ -702,7 +702,12 @@ const coupangDeps = {
   tabsRemove: (id) => chrome.tabs.remove(id),
   executeScript: (opts) => chrome.scripting.executeScript(opts),
   permissionsContains: (q) => new Promise((res) => chrome.permissions.contains(q, res)),
-  permissionsRequest: (q) => new Promise((res) => chrome.permissions.request(q, res)),
+  openGrantWindow: () => chrome.windows.create({
+    url: chrome.runtime.getURL("grant-coupang.html"),
+    type: "popup",
+    width: 420,
+    height: 320,
+  }),
   sendToWebTab: async (msg) => {
     const tabs = await chrome.tabs.query({ url: getInstallDetectionMatches() });
     for (const tab of tabs) {
@@ -718,6 +723,14 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "HOSTIER_COUPANG_IMPORT_START") {
     self.CoupangImport.startImport({ runId: msg.runId, from: msg.from, to: msg.to }, coupangDeps, coupangState)
       .catch((err) => self.CoupangImport.handleError({ runId: msg.runId, code: "UNKNOWN", message: err?.message }, coupangDeps, coupangState));
+    return;
+  }
+  if (msg.type === "HOSTIER_COUPANG_PERMISSION_GRANTED") {
+    self.CoupangImport.handlePermissionGranted(coupangDeps, coupangState);
+    return;
+  }
+  if (msg.type === "HOSTIER_COUPANG_PERMISSION_DECLINED") {
+    self.CoupangImport.handlePermissionDeclined(coupangDeps, coupangState);
     return;
   }
   if (msg.type === "HOSTIER_COUPANG_PROGRESS") {
