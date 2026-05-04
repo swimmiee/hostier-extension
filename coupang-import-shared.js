@@ -24,16 +24,35 @@
 
   async function beginImportFlow({ runId, from, to }, deps, state) {
     markRunning(state, runId);
+
+    // Set the timeout FIRST. Content scripts can post RESULT/ERROR before the
+    // setup awaits below resolve, in which case handleResult/handleError will
+    // delete state.runs[runId] mid-flow — any later `state.runs.get(runId).x = …`
+    // would crash with "Cannot set properties of undefined".
+    const timeoutId = deps.setTimer(() => {
+      if (!state.runs.has(runId)) return;
+      const r = state.runs.get(runId);
+      const tabId = r?.tabId;
+      state.runs.delete(runId);
+      deps.sendToWebTab({ type: "HOSTIER_COUPANG_IMPORT_ERROR", code: "TIMEOUT" });
+      if (tabId) deps.tabsRemove(tabId).catch(() => {});
+    }, 90_000);
+    const startRun = state.runs.get(runId);
+    if (startRun) startRun.timeoutId = timeoutId;
+
     const url = buildStartUrl({ from, to });
     const tab = await deps.tabsCreate({ url, active: false });
-    state.runs.get(runId).tabId = tab.id;
+    // The run may have already been resolved/cleared while the tab was
+    // opening — bail if so.
+    if (!state.runs.has(runId)) {
+      deps.tabsRemove(tab.id).catch(() => {});
+      return;
+    }
+    const tabRun = state.runs.get(runId);
+    if (tabRun) tabRun.tabId = tab.id;
 
     // Seed the run id + range into the tab so the content script can pick
-    // them up. Both injections must target the same world (ISOLATED, the
-    // default). Previously this used `world: "MAIN"`, but the file-based
-    // injection below runs in ISOLATED — which has its own `window`,
-    // so the content script saw `undefined` for these globals and aborted
-    // with NO_RUN_ID before doing any work.
+    // them up. Both injections must target ISOLATED (the default).
     await deps.executeScript({
       target: { tabId: tab.id },
       func: function (runId, range) {
@@ -43,17 +62,12 @@
       args: [runId, { from, to }],
     }).catch(() => {});
 
+    if (!state.runs.has(runId)) return;
+
     await deps.executeScript({
       target: { tabId: tab.id },
       files: ["coupang-extract-shared.js", "coupang-content.js"],
-    });
-
-    state.runs.get(runId).timeoutId = deps.setTimer(() => {
-      deps.sendToWebTab({ type: "HOSTIER_COUPANG_IMPORT_ERROR", code: "TIMEOUT" });
-      const r = state.runs.get(runId);
-      if (r?.tabId) deps.tabsRemove(r.tabId).catch(() => {});
-      state.runs.delete(runId);
-    }, 90_000);
+    }).catch(() => {});
   }
 
   function clearStaleRuns(deps, state) {
