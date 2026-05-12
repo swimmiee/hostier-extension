@@ -702,6 +702,28 @@ const coupangDeps = {
   tabsRemove: (id) => chrome.tabs.remove(id),
   executeScript: (opts) => chrome.scripting.executeScript(opts),
   permissionsContains: (q) => new Promise((res) => chrome.permissions.contains(q, res)),
+  waitForTabComplete: (tabId) => new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      try { chrome.tabs.onUpdated.removeListener(onUpdated); } catch {}
+      resolve();
+    };
+    const onUpdated = (updatedTabId, info) => {
+      if (updatedTabId !== tabId) return;
+      if (info.status === "complete") finish();
+    };
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    // Resolve if the tab is already loaded by the time we attach.
+    chrome.tabs.get(tabId).then((tab) => {
+      if (tab && tab.status === "complete") finish();
+    }).catch(() => {});
+    // Hard ceiling: never block injection more than 15s waiting for load.
+    // Coupang's SSR + Akamai usually settles in <5s; if it really takes
+    // longer, the existing 90s import timeout is the right backstop.
+    setTimeout(finish, 15000);
+  }),
   openGrantWindow: async () => {
     // Size + position roughly to match the toolbar popup so it feels like the
     // extension UI, not a separate browser window.

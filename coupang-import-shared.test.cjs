@@ -14,6 +14,7 @@ function deps(overrides) {
     setTimer: (fn, ms) => { calls.timer = ms; return 1; },
     clearTimer: () => {},
     permissionsContains: async () => true,
+    waitForTabComplete: async () => {},
     openGrantWindow: async () => { calls.grantWindowOpens += 1; },
     ...overrides,
   };

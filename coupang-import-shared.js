@@ -51,23 +51,53 @@
     const tabRun = state.runs.get(runId);
     if (tabRun) tabRun.tabId = tab.id;
 
-    // Seed the run id + range into the tab so the content script can pick
-    // them up. Both injections must target ISOLATED (the default).
-    await deps.executeScript({
-      target: { tabId: tab.id },
-      func: function (runId, range) {
-        window.__HOSTIER_COUPANG_RUN_ID = runId;
-        window.__HOSTIER_COUPANG_RANGE = range;
-      },
-      args: [runId, { from, to }],
-    }).catch(() => {});
-
+    // Wait for the hidden tab to finish loading before injecting. Without
+    // this, chrome.scripting.executeScript races an empty/loading frame
+    // and can fail outright — especially right after the host permission
+    // was just granted, when the scripting layer hasn't yet picked up the
+    // new origin. The previous silent-catch pattern hid those failures
+    // and left the run to time out at 90s with the run-id seed missing,
+    // which surfaced as a "NO_RUN_ID" error toast immediately followed
+    // by a TIMEOUT toast 90s later.
+    if (deps.waitForTabComplete) {
+      await deps.waitForTabComplete(tab.id).catch(() => {});
+    }
     if (!state.runs.has(runId)) return;
 
-    await deps.executeScript({
-      target: { tabId: tab.id },
-      files: ["coupang-extract-shared.js", "coupang-content.js"],
-    }).catch(() => {});
+    // Seed the run id + range into the tab so the content script can pick
+    // them up. Both injections must target ISOLATED (the default).
+    try {
+      await deps.executeScript({
+        target: { tabId: tab.id },
+        func: function (runId, range) {
+          window.__HOSTIER_COUPANG_RUN_ID = runId;
+          window.__HOSTIER_COUPANG_RANGE = range;
+        },
+        args: [runId, { from, to }],
+      });
+
+      if (!state.runs.has(runId)) return;
+
+      await deps.executeScript({
+        target: { tabId: tab.id },
+        files: ["coupang-extract-shared.js", "coupang-content.js"],
+      });
+    } catch (err) {
+      // Inject failed — surface a real error to the web tab rather than
+      // letting the run hang to the 90s TIMEOUT, and clean up state so the
+      // tab doesn't leak.
+      if (state.runs.has(runId)) {
+        const failed = state.runs.get(runId);
+        if (failed?.timeoutId) deps.clearTimer(failed.timeoutId);
+        state.runs.delete(runId);
+      }
+      deps.sendToWebTab({
+        type: "HOSTIER_COUPANG_IMPORT_ERROR",
+        code: "UNKNOWN",
+        message: (err && err.message) || "scripting.executeScript failed",
+      });
+      deps.tabsRemove(tab.id).catch(() => {});
+    }
   }
 
   function clearStaleRuns(deps, state) {
