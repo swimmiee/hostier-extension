@@ -119,18 +119,36 @@ test("auth bundle reader forwards preferredStoreId when selecting the 33m2 tab",
   ]);
 });
 
-test("auth bundle reader passes storeId to waitFor33m2SessionCookie as options", async () => {
-  const waitCalls = [];
-  global.HostierExtensionShared.getCookieStoreIdForTab = async () => "store-9";
-  global.HostierExtensionShared.findPreferred33m2Tab = async () => ({ id: 42 });
-  global.HostierExtensionShared.waitFor33m2SessionCookie = async (
-    config,
-    previousValue,
-    options,
-  ) => {
-    waitCalls.push({ config: config.name, previousValue, options });
+test("auth bundle reader never calls refresh33m2SessionInBrowser or waitFor33m2SessionCookie", async () => {
+  // Single-use wrapper safety: the extension must not call /api/auth/refresh
+  // out of band, because each refresh rotates the wrapper server-side. If we
+  // rotate from a background trigger (cookies.onChanged or tabs.onUpdated
+  // fires performSilentSync → readAuthBundle) and the wrapper Hostier later
+  // sees is one rotation behind, cron 401s forever. See GPT-5 audit
+  // 2026-05-21 + prod log evidence (3-4 POST /api/platform-connections per
+  // reconnect; one observed 7 min after a reconnect with no user action).
+  let refreshCalls = 0;
+  let waitCalls = 0;
+  let validateCalls = 0;
+  global.HostierExtensionShared.refresh33m2SessionInBrowser = async () => {
+    refreshCalls += 1;
+    return { ok: true, status: 200 };
+  };
+  global.HostierExtensionShared.waitFor33m2SessionCookie = async () => {
+    waitCalls += 1;
     return null;
   };
+  global.HostierExtensionShared.validate33m2SessionInBrowser = async () => {
+    validateCalls += 1;
+    return { ok: true, status: 200 };
+  };
+  global.HostierExtensionShared.read33m2AuthSessionInBrowser = async () => ({
+    refreshToken: "refresh-token",
+    accessToken: "fresh-access-token",
+  });
+  global.HostierExtensionShared.getFirebaseRefreshToken = async () => null;
+  global.HostierExtensionShared.findPreferred33m2Tab = async () => ({ id: 42 });
+  global.HostierExtensionShared.getCookieStoreIdForTab = async () => "store-9";
 
   const reader = createPlatformAuthBundleReader({
     chromeApi: {
@@ -156,16 +174,16 @@ test("auth bundle reader passes storeId to waitFor33m2SessionCookie as options",
     msg: (key) => key,
   });
 
-  await reader.readPlatformAuthBundle("THIRTY_THREE_M2", {
+  const result = await reader.readPlatformAuthBundle("THIRTY_THREE_M2", {
     allowMissingRefreshToken: true,
   });
 
-  assert.equal(waitCalls.length, 1);
-  assert.equal(waitCalls[0].previousValue, "session-token");
-  assert.deepEqual(waitCalls[0].options, {
-    timeoutMs: 2000,
-    storeId: "store-9",
-  });
+  assert.equal(refreshCalls, 0, "must NOT call refresh33m2SessionInBrowser");
+  assert.equal(waitCalls, 0, "must NOT poll for rotated cookie");
+  assert.equal(validateCalls, 1, "must call validate exactly once for liveness");
+  assert.equal(result.ok, true);
+  assert.equal(result.token, "session-token");
+  assert.equal(result.accessToken, "fresh-access-token", "must pass through accessToken from /api/auth/session");
 });
 
 test("auth bundle retry loop does not redirect to login on transient 33m2 401", async () => {

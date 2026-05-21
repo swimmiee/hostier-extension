@@ -6,12 +6,10 @@
   function createPlatformAuthBundleReader({ chromeApi, platformConfigs, msg }) {
     const {
       getFirebaseRefreshToken,
-      refresh33m2SessionInBrowser,
       validate33m2SessionInBrowser,
       read33m2AuthSessionInBrowser,
       findPreferred33m2Tab,
       getCookieStoreIdForTab,
-      waitFor33m2SessionCookie,
     } = root.HostierExtensionShared;
 
     async function readFirebaseSessionCookie(config, sessionData, storeId) {
@@ -81,31 +79,28 @@
         };
       }
 
-      const refreshAttempt = await refresh33m2SessionInBrowser(tab.id);
-      const refreshedCookie = await waitFor33m2SessionCookie(config, cookie.value, {
-        timeoutMs: 2000,
-        storeId,
-      });
-      if (refreshedCookie?.value) {
-        cookie = refreshedCookie;
-        tokenExpiresAt = refreshedCookie.expirationDate
-          ? new Date(refreshedCookie.expirationDate * 1000).toISOString()
-          : new Date(Date.now() + config.ttlDays * 86400000).toISOString();
-      }
-
-      if (refreshAttempt?.status === 401 || refreshAttempt?.ok === false) {
-        const browserSessionValidation = await validate33m2SessionInBrowser(tab.id);
-        if (browserSessionValidation?.status === 401 || browserSessionValidation?.status === 403) {
-          if (options.isFinalAttempt === false) {
-            return { ok: false, error: msg("loginAndReturn33m2") };
-          }
-          return {
-            ok: false,
-            error: msg("loginAndReturn33m2"),
-            openUrl: config.loginUrl,
-            clearSession: true,
-          };
+      // Validate-only — do NOT call /api/auth/refresh here. The wrapper is
+      // single-use server-side: every refresh rotates it and spends the
+      // previous value. When this path triggers as a side effect of
+      // chrome.cookies.onChanged or chrome.tabs.onUpdated (background
+      // silent-sync), the wrapper would rotate without the user asking,
+      // leaving Hostier's stored wrapper one step behind whatever 33m2
+      // server-side considers current. Cron's later refresh then 401s
+      // forever. Use validate (consume-free GET) for dead-session
+      // detection instead. See GPT-5 audit 2026-05-21 and prod log
+      // confirmation (3-4 POST /api/platform-connections per reconnect,
+      // plus a 7-min-later background silent-sync observed).
+      const browserSessionValidation = await validate33m2SessionInBrowser(tab.id);
+      if (browserSessionValidation?.status === 401 || browserSessionValidation?.status === 403) {
+        if (options.isFinalAttempt === false) {
+          return { ok: false, error: msg("loginAndReturn33m2") };
         }
+        return {
+          ok: false,
+          error: msg("loginAndReturn33m2"),
+          openUrl: config.loginUrl,
+          clearSession: true,
+        };
       }
 
       const sessionData = await read33m2AuthSessionInBrowser(tab.id);
@@ -114,6 +109,7 @@
         || sessionData?.refreshToken
         || null;
       const firebaseSessionToken = await readFirebaseSessionCookie(config, sessionData, storeId);
+      const accessToken = sessionData?.accessToken || null;
 
       return {
         ok: true,
@@ -121,6 +117,7 @@
         tokenExpiresAt,
         refreshToken,
         firebaseSessionToken,
+        accessToken,
         tabId: tab.id,
       };
     }

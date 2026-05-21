@@ -276,6 +276,7 @@
           token: authBundle.token,
           refreshToken: authBundle.refreshToken,
           firebaseSessionToken: authBundle.firebaseSessionToken,
+          accessToken: authBundle.accessToken,
           tokenExpiresAt: authBundle.tokenExpiresAt,
           autoMaintainEnabled: true,
           consentVersion: deps.consentVersion,
