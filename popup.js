@@ -161,6 +161,16 @@ const PLATFORM_CONFIGS = {
     label: "자리톡",
     autoMaintainEnabled: false,
   },
+  ZIGBANG: {
+    url: "https://www.zigbang.com/",
+    origin: "https://*.zigbang.com/*",
+    name: "_zauth",
+    loginUrl: "https://www.zigbang.com/",
+    homeUrl: "https://www.zigbang.com/home/short-term-rental",
+    ttlDays: 365,
+    label: "직방",
+    autoMaintainEnabled: false,
+  },
 };
 
 const { readPlatformAuthBundleWithRetry } = createPlatformAuthBundleReader({

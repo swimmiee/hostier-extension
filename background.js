@@ -94,6 +94,19 @@ const PLATFORM_CONFIGS = {
     label: "자리톡",
     autoMaintainEnabled: false,
   },
+  ZIGBANG: {
+    url: "https://www.zigbang.com/",
+    origin: "https://*.zigbang.com/*",
+    // `_zauth` is a JWT envelope (NOT httpOnly, .zigbang.com, 365-day) carrying
+    // the durable refresh token. The server parses it and mints stay-apis
+    // access tokens on demand. See vault zigbang.md ## 인증.
+    name: "_zauth",
+    loginUrl: "https://www.zigbang.com/",
+    homeUrl: "https://www.zigbang.com/home/short-term-rental",
+    ttlDays: 365,
+    label: "직방",
+    autoMaintainEnabled: false,
+  },
 };
 
 const { readPlatformAuthBundleWithRetry } = createPlatformAuthBundleReader({
