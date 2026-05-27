@@ -207,9 +207,6 @@
   "autoMaintainInterrupted": {
     "message": "자동 유지가 중단되어 다시 연결이 필요합니다."
   },
-  "manualReconnectOnly": {
-    "message": "만료 시 수동 재연결"
-  },
   "manualReconnectRequired": {
     "message": "연결이 만료되어 다시 연결이 필요합니다."
   },

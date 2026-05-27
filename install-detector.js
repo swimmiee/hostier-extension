@@ -10,6 +10,14 @@ function getInstalledVersion() {
   }
 }
 
+function getRuntimeId() {
+  try {
+    return globalThis.chrome?.runtime?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function markExtensionInstalled() {
   const root = document.documentElement;
   if (!root) {
@@ -17,6 +25,7 @@ function markExtensionInstalled() {
   }
 
   const version = getInstalledVersion();
+  const runtimeId = getRuntimeId();
 
   root.dataset.hostierExtensionInstalled = "true";
   root.dataset.hostierExtensionLastSeenAt = String(Date.now());
@@ -25,10 +34,18 @@ function markExtensionInstalled() {
   } else {
     delete root.dataset.hostierExtensionVersion;
   }
+  // Expose the extension's own ID so the web app can distinguish the official
+  // Web Store build (obcolbkmbodbjcgebfnhjkclfadpiblo) from beta/dev builds,
+  // which get a different unpacked ID.
+  if (runtimeId) {
+    root.dataset.hostierExtensionId = runtimeId;
+  } else {
+    delete root.dataset.hostierExtensionId;
+  }
 
   root.dispatchEvent(
     new CustomEvent(HOSTIER_EXTENSION_INSTALLED_EVENT, {
-      detail: { version },
+      detail: { version, extensionId: runtimeId },
     }),
   );
 }

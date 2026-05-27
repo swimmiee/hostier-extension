@@ -207,9 +207,6 @@
   "autoMaintainInterrupted": {
     "message": "Automatic maintenance stopped and needs reconnect"
   },
-  "manualReconnectOnly": {
-    "message": "Manual reconnect when expired"
-  },
   "manualReconnectRequired": {
     "message": "Connection expired and needs reconnect"
   },

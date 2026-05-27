@@ -16,12 +16,8 @@
       if (connection.tokenExpiresAt) {
         parts.push(`만료 ${formatConnectionDate(connection.tokenExpiresAt)}`);
       }
-      if (!deps.isReconnectRequired(connection)) {
-        if (connection.autoMaintainEnabled) {
-          parts.push("자동 유지");
-        } else {
-          parts.push(deps.msg("manualReconnectOnly"));
-        }
+      if (!deps.isReconnectRequired(connection) && connection.autoMaintainEnabled) {
+        parts.push("자동 유지");
       }
       return parts.join(" · ");
     }
