@@ -48,6 +48,7 @@ const fetchHostier = hostierClient.fetchHostier;
 const {
   getBulkReconnectMismatchMessage,
   get33m2AccountKeyFromToken,
+  isConnectionFlowStale,
 } = globalThis.HostierConnectionFlowShared;
 const { createPlatformAuthBundleReader } = globalThis.HostierAuthBundleShared;
 const { create33m2BackgroundCoordinator } = globalThis.HostierBackground33M2Shared;
@@ -442,6 +443,18 @@ async function maybeContinueConnectionFlowForSteps(allowedSteps) {
   await loadLocaleMessages();
   const flow = await getConnectionFlowState();
   if (!flow?.platform) {
+    return false;
+  }
+
+  // Discard an abandoned flow instead of resuming it. The popup already does
+  // this on open (popup-flow-shared.js); without the same guard here, a stale
+  // 33m2 `awaiting_source` flow gets resumed by chrome.cookies.onChanged the
+  // moment a normal login writes the session cookie, and the runner then calls
+  // localLogout33m2(), wiping the session the user just created (login hang plus
+  // logout-on-next-action). The 10-minute threshold matches the popup so an
+  // actively-progressing flow (re-stamped on every step) is never discarded.
+  if (isConnectionFlowStale(flow, Date.now())) {
+    await hostierClient.clearConnectionFlowState();
     return false;
   }
 

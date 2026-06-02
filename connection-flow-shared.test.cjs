@@ -71,3 +71,35 @@ test("buildConnectRequestBody keeps reconnect and bulk reconnect bodies distinct
   assert.equal(reconnectBody.matchExistingConnectionOnly, undefined);
   assert.equal(reconnectBody.platform, "THIRTY_THREE_M2");
 });
+
+test("isConnectionFlowStale treats a fresh flow as not stale", () => {
+  const now = 1_000_000_000_000;
+  const flow = { platform: "THIRTY_THREE_M2", step: "awaiting_source", updatedAt: now };
+  assert.equal(shared.isConnectionFlowStale(flow, now), false);
+});
+
+test("isConnectionFlowStale flags a flow older than 10 minutes as stale", () => {
+  const now = 1_000_000_000_000;
+  const flow = {
+    platform: "THIRTY_THREE_M2",
+    step: "awaiting_source",
+    updatedAt: now - (10 * 60 * 1000 + 1),
+  };
+  assert.equal(shared.isConnectionFlowStale(flow, now), true);
+});
+
+test("isConnectionFlowStale does not flag a flow exactly at the 10-minute boundary", () => {
+  const now = 1_000_000_000_000;
+  const flow = { platform: "THIRTY_THREE_M2", updatedAt: now - 10 * 60 * 1000 };
+  assert.equal(shared.isConnectionFlowStale(flow, now), false);
+});
+
+test("isConnectionFlowStale treats a flow with no updatedAt as stale", () => {
+  const now = 1_000_000_000_000;
+  assert.equal(shared.isConnectionFlowStale({ platform: "THIRTY_THREE_M2" }, now), true);
+});
+
+test("isConnectionFlowStale returns false for a missing flow", () => {
+  assert.equal(shared.isConnectionFlowStale(null, 1_000_000_000_000), false);
+  assert.equal(shared.isConnectionFlowStale(undefined, 1_000_000_000_000), false);
+});

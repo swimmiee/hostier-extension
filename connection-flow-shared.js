@@ -120,6 +120,20 @@
   const { normalizeBulkReconnectPendingConnections, get33m2AccountKeyFromToken, findBulkReconnectMatch } =
     root.HostierExtensionShared;
 
+  // A persisted connection flow is abandoned/stale once it has not been touched
+  // for this long. `setConnectionFlowState` stamps `updatedAt` on every write, so
+  // an actively-progressing flow stays fresh while an abandoned one ages out.
+  // Mirrors the popup's existing discard threshold (popup-flow-shared.js) so the
+  // popup and the background resume paths agree on a single source of truth.
+  const CONNECTION_FLOW_MAX_AGE_MS = 10 * 60 * 1000;
+
+  function isConnectionFlowStale(flow, nowMs, maxAgeMs = CONNECTION_FLOW_MAX_AGE_MS) {
+    if (!flow) {
+      return false;
+    }
+    return nowMs - Number(flow.updatedAt || 0) > maxAgeMs;
+  }
+
   const api = {
     buildBaseFlow,
     getBulkReconnectWaitingMessage,
@@ -128,6 +142,8 @@
     analyzeCurrentAccountState,
     buildPreserveRequestBody,
     buildConnectRequestBody,
+    isConnectionFlowStale,
+    CONNECTION_FLOW_MAX_AGE_MS,
   };
 
   root.HostierConnectionFlowShared = api;
