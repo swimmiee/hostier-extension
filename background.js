@@ -89,7 +89,7 @@ const PLATFORM_CONFIGS = {
     url: "https://zaritalk.com/",
     origin: "https://zaritalk.com/*",
     name: "zaritalkToken",
-    loginUrl: "https://zaritalk.com/lessor/login",
+    loginUrl: "https://zaritalk.com/",
     homeUrl: "https://zaritalk.com/host",
     ttlDays: 180,
     label: "자리톡",
