@@ -128,7 +128,7 @@ const PLATFORM_CONFIGS = {
     loginUrl: "https://web.33m2.co.kr/sign-in",
     homeUrl: "https://web.33m2.co.kr/host/main",
     ttlDays: 30,
-    label: "33m2",
+    label: "삼삼엠투",
     autoMaintainEnabled: true,
   },
   ENKOSTAY: {
