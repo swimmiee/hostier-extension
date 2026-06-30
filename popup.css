@@ -527,10 +527,11 @@ body {
 
 .account-row.is-expired {
   position: relative;
-  margin: 0 -12px;
-  padding: 13px 12px;
+  margin: 4px -12px;
+  padding: 14px 12px 14px 15px;
   border-radius: 12px;
-  background: rgba(179, 138, 38, 0.07);
+  background: rgba(179, 138, 38, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(179, 138, 38, 0.16);
   border-bottom-color: transparent;
 }
 
@@ -538,8 +539,8 @@ body {
   content: "";
   position: absolute;
   left: 0;
-  top: 12px;
-  bottom: 12px;
+  top: 14px;
+  bottom: 14px;
   width: 3px;
   border-radius: 999px;
   background: #b38a26;
@@ -552,17 +553,25 @@ body {
 }
 
 .account-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.06);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   color: #6b7280;
 }
 
 .account-state.connected {
+  background: rgba(22, 101, 52, 0.1);
   color: #166534;
 }
 
 .account-state.expired {
-  color: #b45309;
+  background: rgba(179, 138, 38, 0.16);
+  color: #8a680f;
 }
 
 .account-actions {
@@ -576,8 +585,9 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   min-height: 32px;
-  padding: 0 16px;
+  padding: 0 15px;
   border: 0;
   border-radius: 999px;
   background: #2f6f43;
@@ -589,12 +599,29 @@ body {
   white-space: nowrap;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(47, 111, 67, 0.28);
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.row-reconnect::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  margin-left: -1px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.6-6.4'/%3E%3Cpath d='M21 3v5h-5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.6-6.4'/%3E%3Cpath d='M21 3v5h-5'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .row-reconnect:hover,
 .row-reconnect:focus-visible {
   background: #285f39;
+  box-shadow: 0 2px 8px -1px rgba(47, 111, 67, 0.38);
+  outline: none;
+}
+
+.row-reconnect:active {
+  transform: translateY(0.5px);
+  box-shadow: 0 1px 2px rgba(47, 111, 67, 0.28);
 }
 
 .text-action {
@@ -611,6 +638,44 @@ body {
 .text-action:hover,
 .text-action:focus-visible {
   color: #6b7280;
+}
+
+@keyframes hostier-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.platform-row,
+.account-row {
+  animation: hostier-row-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.platform-row:nth-child(2),
+.account-row:nth-child(2) {
+  animation-delay: 0.045s;
+}
+
+.platform-row:nth-child(3),
+.account-row:nth-child(3) {
+  animation-delay: 0.09s;
+}
+
+.platform-row:nth-child(n + 4),
+.account-row:nth-child(n + 4) {
+  animation-delay: 0.13s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-row,
+  .account-row {
+    animation: none;
+  }
 }
 
 .empty-state {
@@ -644,32 +709,44 @@ body {
 
 .detail-head-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
 .ghost-action {
   flex-shrink: 0;
-  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(17, 24, 39, 0.1);
   background: transparent;
-  padding: 4px 0;
+  padding: 6px 11px;
+  border-radius: 999px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #6b7280;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .ghost-action::before {
-  content: "+ ";
+  content: "";
+  width: 11px;
+  height: 11px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .ghost-action:hover,
 .ghost-action:focus-visible {
   color: #2f6f43;
+  border-color: rgba(47, 111, 67, 0.28);
+  background: rgba(47, 111, 67, 0.05);
+  outline: none;
 }
 
 .detail-actions {
