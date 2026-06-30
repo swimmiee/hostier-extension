@@ -1,24 +1,5 @@
 (function initPopupRenderShared(root) {
   function createPopupRenderController(deps) {
-    function formatConnectionDate(value) {
-      return deps.connectionDateFormatter.format(new Date(value));
-    }
-
-    function getConnectionMeta(connection) {
-      // Keep the detail row to a single calm line. An expired account already says
-      // everything through its "만료됨" label and the reconnect button, so we add nothing.
-      if (deps.isReconnectRequired(connection)) {
-        return "";
-      }
-      if (connection.autoMaintainEnabled) {
-        return "자동 유지";
-      }
-      if (connection.lastSyncedAt) {
-        return `업데이트 ${formatConnectionDate(connection.lastSyncedAt)}`;
-      }
-      return "";
-    }
-
     function getListSummary(platform) {
       if (deps.isStatusLoading()) {
         return deps.msg("loadingConnections");
@@ -234,11 +215,9 @@
       for (const connection of connections) {
         const expired = deps.isReconnectRequired(connection);
         const row = deps.document.createElement("div");
-        row.className = expired ? "account-row is-expired" : "account-row";
+        row.className = "account-row";
 
-        const body = deps.document.createElement("div");
-        body.className = "account-body";
-
+        // Line 1: identity on the left, status pinned to the right.
         const head = deps.document.createElement("div");
         head.className = "account-head";
 
@@ -256,20 +235,21 @@
               ? deps.msg("expired")
               : "연결 안됨";
         head.append(state);
+        row.append(head);
 
-        body.append(head);
-
-        const metaText = getConnectionMeta(connection);
-        if (metaText) {
-          const meta = deps.document.createElement("div");
-          meta.className = "account-meta";
-          meta.textContent = metaText;
-          body.append(meta);
-        }
-        row.append(body);
-
+        // Line 2: actions right-aligned, with the quiet 해제 link before the
+        // primary reconnect button so the green CTA sits at the row's edge.
         const actions = deps.document.createElement("div");
         actions.className = "account-actions";
+
+        const disconnectButton = deps.document.createElement("button");
+        disconnectButton.type = "button";
+        disconnectButton.className = "text-action";
+        disconnectButton.textContent = "해제";
+        disconnectButton.onclick = () => {
+          void deps.disconnectConnection(currentPlatform, connection);
+        };
+        actions.append(disconnectButton);
 
         if (expired) {
           const reconnectButton = deps.document.createElement("button");
@@ -291,16 +271,7 @@
           actions.append(reconnectButton);
         }
 
-        const disconnectButton = deps.document.createElement("button");
-        disconnectButton.type = "button";
-        disconnectButton.className = "text-action";
-        disconnectButton.textContent = "해제";
-        disconnectButton.onclick = () => {
-          void deps.disconnectConnection(currentPlatform, connection);
-        };
-        actions.append(disconnectButton);
         row.append(actions);
-
         ui.accountsList.append(row);
       }
     }

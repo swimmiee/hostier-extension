@@ -100,12 +100,15 @@ test("renderDetailView omits bulk reconnect CTA but still renders expired 33m2 d
   assert.equal(ui.accountsList.children.length, 1);
 
   const [accountRow] = ui.accountsList.children;
-  assert.equal(accountRow.className, "account-row is-expired");
+  assert.equal(accountRow.className, "account-row");
+  // Row is two lines: head (identity + status) then the actions line.
   const actions = accountRow.children[1];
   assert.equal(actions.children.length, 2);
-  assert.equal(actions.children[0].textContent, messages.reconnect);
-  // The reconnect affordance is now a filled button, not a faint text link.
-  assert.equal(actions.children[0].className, "row-reconnect");
+  // 해제 comes first so the filled reconnect button sits at the row's right edge.
+  assert.equal(actions.children[0].textContent, "해제");
+  assert.equal(actions.children[0].className, "text-action");
+  assert.equal(actions.children[1].textContent, messages.reconnect);
+  assert.equal(actions.children[1].className, "row-reconnect");
 });
 
 test("renderPlatformList shows grantPermission when the platform permission is missing", () => {
