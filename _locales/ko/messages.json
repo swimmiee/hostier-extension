@@ -272,7 +272,7 @@
     }
   },
   "awaitingSourceGenericTitle": {
-    "message": "다음 $platform$ 계정",
+    "message": "$platform$ 계정 연결",
     "placeholders": {
       "platform": {
         "content": "$1"

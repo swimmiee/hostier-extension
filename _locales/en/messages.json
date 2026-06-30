@@ -272,7 +272,7 @@
     }
   },
   "awaitingSourceGenericTitle": {
-    "message": "Next $platform$ account",
+    "message": "Connect $platform$ account",
     "placeholders": {
       "platform": {
         "content": "$1"
