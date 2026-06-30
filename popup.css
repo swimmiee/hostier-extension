@@ -503,6 +503,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  margin-bottom: 10px;
   border: 0;
   background: transparent;
   padding: 0;
@@ -510,6 +511,14 @@ body {
   font-weight: 600;
   color: #6b7280;
   cursor: pointer;
+}
+
+.back-btn-icon {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
 }
 
 .back-btn:hover,
