@@ -522,27 +522,11 @@ body {
 .account-row {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  align-items: start;
+  align-items: center;
 }
 
-.account-row.is-expired {
-  position: relative;
-  margin: 4px -12px;
-  padding: 13px 12px 13px 16px;
-  border-radius: 10px;
-  background: rgba(179, 138, 38, 0.06);
-  border-bottom-color: transparent;
-}
-
-.account-row.is-expired::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 13px;
-  bottom: 13px;
-  width: 3px;
-  border-radius: 999px;
-  background: #b38a26;
+.account-actions {
+  justify-content: center;
 }
 
 .account-head {
@@ -730,24 +714,23 @@ body {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  border: 1px solid rgba(17, 24, 39, 0.1);
+  gap: 4px;
+  border: 0;
   background: transparent;
-  padding: 6px 11px;
-  border-radius: 999px;
+  padding: 4px 0;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: #6b7280;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .ghost-action::before {
   content: "";
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   background-color: currentColor;
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat;
@@ -756,8 +739,6 @@ body {
 .ghost-action:hover,
 .ghost-action:focus-visible {
   color: #2f6f43;
-  border-color: rgba(47, 111, 67, 0.28);
-  background: rgba(47, 111, 67, 0.05);
   outline: none;
 }
 

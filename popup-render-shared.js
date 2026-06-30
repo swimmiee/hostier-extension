@@ -1,25 +1,22 @@
 (function initPopupRenderShared(root) {
   function createPopupRenderController(deps) {
-    function formatConnectionDateTime(value) {
-      return deps.connectionDateTimeFormatter.format(new Date(value));
-    }
-
     function formatConnectionDate(value) {
       return deps.connectionDateFormatter.format(new Date(value));
     }
 
     function getConnectionMeta(connection) {
-      const parts = [];
+      // Keep the detail row to a single calm line. An expired account already says
+      // everything through its "만료됨" label and the reconnect button, so we add nothing.
+      if (deps.isReconnectRequired(connection)) {
+        return "";
+      }
+      if (connection.autoMaintainEnabled) {
+        return "자동 유지";
+      }
       if (connection.lastSyncedAt) {
-        parts.push(`업데이트 ${formatConnectionDateTime(connection.lastSyncedAt)}`);
+        return `업데이트 ${formatConnectionDate(connection.lastSyncedAt)}`;
       }
-      if (connection.tokenExpiresAt) {
-        parts.push(`만료 ${formatConnectionDate(connection.tokenExpiresAt)}`);
-      }
-      if (!deps.isReconnectRequired(connection) && connection.autoMaintainEnabled) {
-        parts.push("자동 유지");
-      }
-      return parts.join(" · ");
+      return "";
     }
 
     function getListSummary(platform) {
@@ -262,10 +259,13 @@
 
         body.append(head);
 
-        const meta = deps.document.createElement("div");
-        meta.className = "account-meta";
-        meta.textContent = getConnectionMeta(connection);
-        body.append(meta);
+        const metaText = getConnectionMeta(connection);
+        if (metaText) {
+          const meta = deps.document.createElement("div");
+          meta.className = "account-meta";
+          meta.textContent = metaText;
+          body.append(meta);
+        }
         row.append(body);
 
         const actions = deps.document.createElement("div");
