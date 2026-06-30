@@ -46,6 +46,8 @@ test("renderDetailView omits bulk reconnect CTA but still renders expired 33m2 d
     accountsList: new FakeElement(),
     detailSafeLogout: new FakeElement("button"),
     detailAddAccount: new FakeElement("button"),
+    detailActions: new FakeElement(),
+    detailConnect: new FakeElement("button"),
   };
   const controller = createPopupRenderController({
     document: {
@@ -90,13 +92,20 @@ test("renderDetailView omits bulk reconnect CTA but still renders expired 33m2 d
   assert.equal(ui.detailSafeLogout.hidden, false);
   assert.equal(ui.detailSafeLogout.textContent, messages.safeLogout);
   assert.equal(ui.detailAddAccount.textContent, messages.addAnotherAccount);
+  // "다른 계정 추가" stays visible as a header affordance; the loud bottom CTA is hidden
+  // because accounts already exist (it is reserved for the first-connect case).
+  assert.equal(ui.detailAddAccount.hidden, false);
+  assert.equal(ui.detailActions.hidden, true);
   assert.equal(ui.accountsList.hidden, false);
   assert.equal(ui.accountsList.children.length, 1);
 
   const [accountRow] = ui.accountsList.children;
+  assert.equal(accountRow.className, "account-row is-expired");
   const actions = accountRow.children[1];
   assert.equal(actions.children.length, 2);
   assert.equal(actions.children[0].textContent, messages.reconnect);
+  // The reconnect affordance is now a filled button, not a faint text link.
+  assert.equal(actions.children[0].className, "row-reconnect");
 });
 
 test("renderPlatformList shows grantPermission when the platform permission is missing", () => {

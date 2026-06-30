@@ -220,6 +220,8 @@ const ui = {
   accountsList: document.getElementById("accountsList"),
   detailSafeLogout: document.getElementById("detailSafeLogout"),
   detailAddAccount: document.getElementById("detailAddAccount"),
+  detailActions: document.getElementById("detailActions"),
+  detailConnect: document.getElementById("detailConnect"),
 };
 
 let currentSession = null;
@@ -642,10 +644,13 @@ ui.detailBack.addEventListener("click", () => {
   renderViews();
 });
 
-ui.detailAddAccount.addEventListener("click", () => {
+function startAddAccountFlow() {
   if (!currentPlatform) return;
   showDisclosure(currentPlatform, { showDetailView: true });
-});
+}
+
+ui.detailAddAccount.addEventListener("click", startAddAccountFlow);
+ui.detailConnect.addEventListener("click", startAddAccountFlow);
 
 ui.detailSafeLogout.addEventListener("click", () => {
   if (currentPlatform !== "THIRTY_THREE_M2") return;

@@ -213,8 +213,19 @@
           : "";
       ui.detailSafeLogout.hidden = currentPlatform !== "THIRTY_THREE_M2";
       ui.detailSafeLogout.textContent = deps.msg("safeLogout");
-      ui.detailAddAccount.textContent =
-        connections.length > 0 ? deps.msg("addAnotherAccount") : deps.msg("connect");
+
+      const hasConnections = connections.length > 0;
+      // "다른 계정 추가" is a low-emphasis affordance tucked into the header, and only
+      // appears once at least one account exists. The loud bottom CTA is reserved for the
+      // genuine first-connect case so it never competes with per-account reconnect.
+      ui.detailAddAccount.textContent = deps.msg("addAnotherAccount");
+      ui.detailAddAccount.hidden = !hasConnections;
+      if (ui.detailConnect) {
+        ui.detailConnect.textContent = deps.msg("connect");
+      }
+      if (ui.detailActions) {
+        ui.detailActions.hidden = hasConnections;
+      }
 
       ui.accountsList.textContent = "";
       ui.accountsList.hidden = connections.length === 0;
@@ -224,8 +235,9 @@
       }
 
       for (const connection of connections) {
+        const expired = deps.isReconnectRequired(connection);
         const row = deps.document.createElement("div");
-        row.className = "account-row";
+        row.className = expired ? "account-row is-expired" : "account-row";
 
         const body = deps.document.createElement("div");
         body.className = "account-body";
@@ -239,11 +251,11 @@
         head.append(label);
 
         const state = deps.document.createElement("div");
-        state.className = `account-state ${connection.status === "ACTIVE" ? "connected" : deps.isReconnectRequired(connection) ? "expired" : "idle"}`;
+        state.className = `account-state ${connection.status === "ACTIVE" ? "connected" : expired ? "expired" : "idle"}`;
         state.textContent =
           connection.status === "ACTIVE"
             ? deps.msg("connected")
-            : deps.isReconnectRequired(connection)
+            : expired
               ? deps.msg("expired")
               : "연결 안됨";
         head.append(state);
@@ -259,10 +271,10 @@
         const actions = deps.document.createElement("div");
         actions.className = "account-actions";
 
-        if (deps.isReconnectRequired(connection)) {
+        if (expired) {
           const reconnectButton = deps.document.createElement("button");
           reconnectButton.type = "button";
-          reconnectButton.className = "text-action primary";
+          reconnectButton.className = "row-reconnect";
           reconnectButton.textContent = deps.msg("reconnect");
           reconnectButton.onclick = () => {
             if (!deps.getPlatformPermissionState(currentPlatform)) {
