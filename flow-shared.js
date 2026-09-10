@@ -80,7 +80,9 @@
 
   function get33m2AccountKeyFromToken(token) {
     const payload = parseJwtPayload(token);
-    const aid = normalize33m2Aid(payload?.aid);
+    // 33m2가 세션 JWT의 `aid` 클레임을 `uid`로 개명(2026-09-08, 값·포맷 동일).
+    // 옛 토큰도 살아 있으므로 둘 다 읽는다.
+    const aid = normalize33m2Aid(payload?.aid ?? payload?.uid);
     return aid ? `33m2:${aid}` : undefined;
   }
 

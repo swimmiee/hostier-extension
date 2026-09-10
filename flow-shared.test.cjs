@@ -33,6 +33,16 @@ test("get33m2AccountKeyFromToken normalizes numeric aid from JWT payload", () =>
   assert.equal(shared.get33m2AccountKeyFromToken(token), "33m2:123");
 });
 
+test("get33m2AccountKeyFromToken reads the renamed uid claim", () => {
+  // 33m2가 세션 JWT의 계정 id 클레임을 `aid` -> `uid`로 개명(2026-09-08).
+  const token = createJwt({ uid: 525191, firebaseToken: "ft", isHost: true });
+  assert.equal(shared.get33m2AccountKeyFromToken(token), "33m2:525191");
+});
+
+test("get33m2AccountKeyFromToken returns undefined when neither aid nor uid is present", () => {
+  assert.equal(shared.get33m2AccountKeyFromToken(createJwt({ firebaseToken: "ft" })), undefined);
+});
+
 test("findBulkReconnectMatch matches reconnect items by normalized account key", () => {
   const token = createJwt({ aid: 58959 });
   const match = shared.findBulkReconnectMatch([
