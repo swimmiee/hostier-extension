@@ -39,6 +39,11 @@ test("get33m2AccountKeyFromToken reads the renamed uid claim", () => {
   assert.equal(shared.get33m2AccountKeyFromToken(token), "33m2:525191");
 });
 
+test("get33m2AccountKeyFromToken prefers the current uid claim when both are present", () => {
+  const token = createJwt({ uid: 525191, aid: "member-000999" });
+  assert.equal(shared.get33m2AccountKeyFromToken(token), "33m2:525191");
+});
+
 test("get33m2AccountKeyFromToken returns undefined when neither aid nor uid is present", () => {
   assert.equal(shared.get33m2AccountKeyFromToken(createJwt({ firebaseToken: "ft" })), undefined);
 });
