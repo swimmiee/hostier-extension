@@ -107,47 +107,103 @@
     return result?.result || null;
   }
 
+  /**
+   * 33m2 탭 안에서 실행되는 함수. `chrome.scripting.executeScript` 가 toString 해서
+   * 주입하므로 바깥 스코프를 참조하면 안 된다(자기완결이어야 한다).
+   *
+   * 2026-08-14 실유저 재현: 여기서 연 indexedDB 커넥션을 닫지 않아 33m2 Firebase 의
+   * 업그레이드·삭제가 blocked 되고, 그 deleteDatabase 요청이 origin 에 pending 으로
+   * 남는다. IndexedDB 스펙상 이후 모든 open() 이 그 뒤에 줄을 서므로 새 탭의 Firebase
+   * 초기화가 영영 안 끝나고 "로그인 중" 스피너가 멈추지 않는다. 오염된 탭을 닫거나
+   * 크롬을 다시 켜야 풀려서 증상이 간헐적으로 보였다.
+   * 그래서 어느 경로로 끝나든 close 하고, 다른 쪽이 업그레이드를 요청하면 즉시 비켜 준다.
+   */
+  function readFirebaseRefreshTokenInPage() {
+    return new Promise((resolve) => {
+      let db = null;
+      let settled = false;
+      const done = (value) => {
+        if (settled) return;
+        settled = true;
+        try {
+          if (db) db.close();
+        } catch (_) {
+          // 닫기 실패는 이미 읽은 값에 영향을 주지 않는다.
+        }
+        resolve(value);
+      };
+
+      let req;
+      try {
+        req = indexedDB.open("firebaseLocalStorageDb");
+      } catch (_) {
+        resolve(null);
+        return;
+      }
+
+      req.onerror = () => done(null);
+      // 다른 커넥션이 쥐고 있어 열리지 않으면 기다리지 않고 비켜 준다.
+      req.onblocked = () => done(null);
+      req.onsuccess = () => {
+        db = req.result;
+        try {
+          // 33m2 Firebase 가 업그레이드·삭제를 요청하는 순간 우리가 길을 비킨다.
+          db.onversionchange = () => {
+            try {
+              db.close();
+            } catch (_) {
+              // 무시
+            }
+          };
+        } catch (_) {
+          // onversionchange 를 못 달아도 아래 done 에서 닫는다.
+        }
+
+        let store;
+        try {
+          const tx = db.transaction("firebaseLocalStorage", "readonly");
+          store = tx.objectStore("firebaseLocalStorage");
+        } catch (_) {
+          // 아직 로그인 전이라 스토어가 없다. 커넥션만 닫고 끝낸다.
+          done(null);
+          return;
+        }
+
+        const getAll = store.getAll();
+        getAll.onsuccess = () => {
+          const extractRefreshToken = (entry) => {
+            const candidates = [
+              entry?.value?.stsTokenManager?.refreshToken,
+              entry?.value?.user?.stsTokenManager?.refreshToken,
+              entry?.value?.spipiRefreshToken,
+              entry?.value?.refreshToken,
+              entry?.stsTokenManager?.refreshToken,
+            ];
+
+            return (
+              candidates.find(
+                (candidate) =>
+                  typeof candidate === "string"
+                  && candidate.length > 0
+                  && candidate.split(".").length !== 3,
+              ) || null
+            );
+          };
+
+          const token = (getAll.result || []).map(extractRefreshToken).find(Boolean);
+          done(token || null);
+        };
+        getAll.onerror = () => done(null);
+      };
+    });
+  }
+
   async function getFirebaseRefreshToken(tabId, options = {}) {
     const { timeoutMs = 3000, logPrefix = "[hostier]" } = options;
     try {
       const execution = root.chrome.scripting.executeScript({
         target: { tabId },
-        func: () => {
-          return new Promise((resolve) => {
-            const req = indexedDB.open("firebaseLocalStorageDb");
-            req.onsuccess = () => {
-              const db = req.result;
-              const tx = db.transaction("firebaseLocalStorage", "readonly");
-              const store = tx.objectStore("firebaseLocalStorage");
-              const getAll = store.getAll();
-              getAll.onsuccess = () => {
-                const extractRefreshToken = (entry) => {
-                  const candidates = [
-                    entry?.value?.stsTokenManager?.refreshToken,
-                    entry?.value?.user?.stsTokenManager?.refreshToken,
-                    entry?.value?.spipiRefreshToken,
-                    entry?.value?.refreshToken,
-                    entry?.stsTokenManager?.refreshToken,
-                  ];
-
-                  return (
-                    candidates.find(
-                      (candidate) =>
-                        typeof candidate === "string"
-                        && candidate.length > 0
-                        && candidate.split(".").length !== 3,
-                    ) || null
-                  );
-                };
-
-                const token = getAll.result.map(extractRefreshToken).find(Boolean);
-                resolve(token || null);
-              };
-              getAll.onerror = () => resolve(null);
-            };
-            req.onerror = () => resolve(null);
-          });
-        },
+        func: readFirebaseRefreshTokenInPage,
       });
       const result = await withTimeout(execution, timeoutMs, []);
       const [entry] = Array.isArray(result) ? result : [];
@@ -516,6 +572,7 @@
     get33m2AccountKeyFromToken,
     findBulkReconnectMatch,
     getFirebaseRefreshToken,
+    readFirebaseRefreshTokenInPage,
     refresh33m2SessionInBrowser,
     validate33m2SessionInBrowser,
     read33m2AuthSessionInBrowser,

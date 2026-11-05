@@ -127,3 +127,119 @@ test("localLogout33m2 returns even when firebase local-state cleanup stalls", as
     global.chrome = originalChrome;
   }
 });
+
+// 2026-08-14 실유저 재현: 33m2 탭에서 연 indexedDB 커넥션을 닫지 않아 Firebase 의
+// 업그레이드·삭제가 blocked 되고, pending 으로 남은 deleteDatabase 뒤로 이후 모든
+// open() 이 줄을 서서 "로그인 중" 스피너가 멈추지 않았다. 한 번 고쳤다가 되돌린
+// 적이 있으므로 여기서 묶는다.
+function installFakeIndexedDb({ entries = null, throwOnOpen = false, missingStore = false, blocked = false }) {
+  const calls = { closed: 0, versionChangeHandlerSet: false };
+  const db = {
+    close() {
+      calls.closed += 1;
+    },
+    transaction() {
+      if (missingStore) {
+        throw new DOMException("NotFoundError");
+      }
+      return {
+        objectStore: () => ({
+          getAll() {
+            const req = {};
+            queueMicrotask(() => {
+              req.result = entries || [];
+              req.onsuccess && req.onsuccess();
+            });
+            return req;
+          },
+        }),
+      };
+    },
+  };
+  Object.defineProperty(db, "onversionchange", {
+    set(fn) {
+      calls.versionChangeHandlerSet = typeof fn === "function";
+      calls.versionChangeHandler = fn;
+    },
+    get() {
+      return calls.versionChangeHandler;
+    },
+    configurable: true,
+  });
+
+  global.DOMException = global.DOMException || class DOMException extends Error {};
+  global.indexedDB = {
+    open() {
+      if (throwOnOpen) throw new Error("blocked by policy");
+      const req = {};
+      queueMicrotask(() => {
+        if (blocked) {
+          req.onblocked && req.onblocked();
+          return;
+        }
+        req.result = db;
+        req.onsuccess && req.onsuccess();
+      });
+      return req;
+    },
+  };
+  return calls;
+}
+
+test("readFirebaseRefreshTokenInPage 는 토큰을 읽은 뒤 커넥션을 닫는다", async () => {
+  const calls = installFakeIndexedDb({
+    entries: [{ value: { stsTokenManager: { refreshToken: "refresh-abc" } } }],
+  });
+
+  const token = await shared.readFirebaseRefreshTokenInPage();
+
+  assert.equal(token, "refresh-abc");
+  assert.equal(calls.closed, 1, "읽고 나서 db.close() 를 불러야 한다");
+  assert.equal(calls.versionChangeHandlerSet, true, "onversionchange 를 달아야 한다");
+});
+
+test("readFirebaseRefreshTokenInPage 는 스토어가 없어도 멈추지 않고 커넥션을 닫는다", async () => {
+  const calls = installFakeIndexedDb({ missingStore: true });
+
+  const token = await shared.readFirebaseRefreshTokenInPage();
+
+  assert.equal(token, null);
+  assert.equal(calls.closed, 1, "스토어가 없을 때도 닫아야 한다");
+});
+
+test("readFirebaseRefreshTokenInPage 는 blocked 면 기다리지 않고 비켜 준다", async () => {
+  installFakeIndexedDb({ blocked: true });
+
+  const token = await shared.readFirebaseRefreshTokenInPage();
+
+  assert.equal(token, null);
+});
+
+test("readFirebaseRefreshTokenInPage 의 onversionchange 는 커넥션을 닫는다", async () => {
+  const calls = installFakeIndexedDb({
+    entries: [{ value: { stsTokenManager: { refreshToken: "refresh-abc" } } }],
+  });
+
+  await shared.readFirebaseRefreshTokenInPage();
+  const before = calls.closed;
+  calls.versionChangeHandler();
+
+  assert.equal(calls.closed, before + 1, "Firebase 가 업그레이드를 요청하면 즉시 닫아야 한다");
+});
+
+test("readFirebaseRefreshTokenInPage 는 JWT 모양(점 두 개)은 refresh token 으로 보지 않는다", async () => {
+  installFakeIndexedDb({
+    entries: [
+      { value: { stsTokenManager: { refreshToken: "aaa.bbb.ccc" } } },
+      { value: { refreshToken: "real-refresh" } },
+    ],
+  });
+
+  assert.equal(await shared.readFirebaseRefreshTokenInPage(), "real-refresh");
+});
+
+test("readFirebaseRefreshTokenInPage 는 indexedDB.open 이 던져도 null 을 돌려준다", async () => {
+  installFakeIndexedDb({ throwOnOpen: true });
+
+  assert.equal(await shared.readFirebaseRefreshTokenInPage(), null);
+});
